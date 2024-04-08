@@ -27,4 +27,7 @@ public class EnergyListResponse
 
     [JsonPropertyName("result")]
     public List<EnergyList> Result { get; set; }
+
+    [JsonPropertyName("msg")]
+    public string? ErrorMessage { get; set; }
 }

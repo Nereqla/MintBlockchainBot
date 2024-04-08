@@ -1,0 +1,149 @@
+﻿using MintBlockchainBotConsoleUI.Models;
+using System.Net.Http.Headers;
+using System.Text.Json;
+
+namespace MintBlockchainBotConsoleUI.Helpers;
+internal class DiscordWebHookManager
+{
+    public static bool State = false;
+
+    private static string _discordWebHook;
+    private static TimeSpan _sendDelay = TimeSpan.FromSeconds(5);
+
+    private static HttpClient _client = new HttpClient();
+    public static string DiscordWebHook
+    {
+        get => _discordWebHook;
+
+        set
+        {
+            if (!String.IsNullOrEmpty(value))
+            {
+                _discordWebHook = value;
+                State = true;
+            }
+            else
+            {
+                _discordWebHook = value;
+                State = false;
+            }
+
+        }
+    }
+
+    public static Queue<DiscordMessage> MessageQueue = new Queue<DiscordMessage>();
+
+    public static async Task DiscordLogic()
+    {
+        while (true)
+        {
+            if (State)
+            {
+                List<DiscordMessage> errorqueue = new List<DiscordMessage>();
+                while (MessageQueue.TryDequeue(out DiscordMessage message))
+                {
+                    if (message.IsError)
+                    {
+                        errorqueue.Add(message);
+                    }
+                    else
+                    {
+                        await SendInformationMessage(message);
+                        await Task.Delay(_sendDelay);
+                    }
+                }
+                if (errorqueue.Count > 0)
+                    await SendErrorMessageQueue(errorqueue);
+            }
+            await Task.Delay(TimeSpan.FromSeconds(60));
+        }
+    }
+
+    private static async Task SendInformationMessage(DiscordMessage message)
+    {
+        var messageContent = new DiscordWebHookMessageContent();
+        messageContent.Embeds = new List<Embed>();
+        var embed = new Embed();
+        embed.Title = "Bilgilendirme";
+        embed.Description = message.AccountName;
+        embed.Color = 65280; // green
+        embed.Fields = new List<Field>();
+
+        for (int i = 0; i < message.Messages.Count; i++)
+        {
+            var parts = message.Messages[i].Split('|');
+
+            embed.Fields.Add(new Field()
+            {
+                Name = $"{parts[0]} {parts[1]}",
+                Value = ".",
+            });
+        }
+
+        messageContent.Embeds.Add(embed);
+        await SendMessage(messageContent);
+    }
+
+    // Discord Webhook maximum field count 25!
+    private static async Task SendErrorMessageQueue(List<DiscordMessage> errorsQueue)
+    {
+        var messageContent = new DiscordWebHookMessageContent();
+        messageContent.Embeds = new List<Embed>();
+        Embed embed = new Embed();
+        messageContent.Embeds.Add(embed);
+        embed.Title = "KRİTİK BİR HATA OLUŞTU";
+        embed.Description = "Aşağıdaki adı geçen hesaplar hata oluştuğundan dolayı durdurulmuştur!";
+        embed.Color = 16711680; // red
+        embed.Fields = new List<Field>();
+
+        int counter = 0;
+
+        for (int i = 0; i < errorsQueue.Count; i++)
+        {
+            if (counter > 24)
+            {
+                await SendMessage(messageContent);
+                embed = new Embed();
+                embed.Title = "KRİTİK BİR HATA OLUŞTU";
+                embed.Description = "Aşağıdaki adı geçen hesaplar hata oluştuğundan dolayı durdurulmuştur!";
+                embed.Color = 16711680; // red
+                embed.Fields = new List<Field>();
+                counter = 0;
+                await Task.Delay(_sendDelay);
+            }
+            embed.Fields.Add(new Field()
+            {
+                Name = errorsQueue[i].AccountName,
+                Value = errorsQueue[i].Messages.First(),
+            });
+            counter++;
+        }
+        if (messageContent.Embeds.Count > 0)
+        {
+            await SendMessage(messageContent);
+        }
+    }
+
+    private static async Task SendMessage(DiscordWebHookMessageContent msgContent)
+    {
+        try
+        {
+            using (var content = new StringContent(JsonSerializer.Serialize(msgContent)))
+            {
+                content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+                using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, _discordWebHook))
+                {
+                    request.Content = content;
+                    var response = await _client.SendAsync(request);
+                    response.EnsureSuccessStatusCode();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await Console.Out.WriteLineAsync("Discord'a mesaj gönderilirken hata oluştu!");
+            await Console.Out.WriteLineAsync(ex.Message);
+            State = false;
+        }
+    }
+}

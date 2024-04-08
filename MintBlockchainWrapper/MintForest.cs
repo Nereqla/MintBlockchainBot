@@ -82,10 +82,11 @@ public class MintForest
     {
         if (!_isAuthenticated) return null;
 
-        using (var content = new StringContent(JsonSerializer.Serialize(new { energy = energyAmount, _publicKey }), Encoding.UTF8, "application/json"))
+        using (var content = new StringContent(JsonSerializer.Serialize(new { energy = energyAmount, address = _publicKey }), Encoding.UTF8, "application/json"))
         {
             using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, Config.InjectMeEndpoint))
             {
+                request.Content = content;
                 using (var response = await _httpHelper.Client.SendAsync(request))
                 {
                     var responseContent = await response.Content.ReadAsStringAsync();
@@ -139,6 +140,7 @@ public class MintForest
         {
             using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, Config.ClaimEndpoint))
             {
+                request.Content = content;
                 using (var response = await _httpHelper.Client.SendAsync(request))
                 {
                     var responseContent = await response.Content.ReadAsStringAsync();
@@ -159,7 +161,7 @@ public class MintForest
         }
     }
 
-    public async Task<TimeSpan> GetNextDailyTime() => (DateTime.Today.AddDays(1).Date - DateTime.UtcNow);
+    public TimeSpan GetNextDailyTime() => (DateTime.Today.AddDays(1).Date - DateTime.UtcNow);
 }
 
 

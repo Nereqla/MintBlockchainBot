@@ -1,4 +1,6 @@
 ﻿using MintBlockchainBot;
+using MintBlockchainBotConsoleUI;
+using MintBlockchainBotConsoleUI.Helpers;
 using MintBlockChainBotConsoleUI.Helpers;
 using MintBlockChainBotConsoleUI.Models;
 
@@ -9,15 +11,33 @@ internal class Program
     private static ApplicationSettings _appSettings;
     static async Task Main(string[] args)
     {
+        Console.Title = "MintForest";
+
         LoadApplicationSettings();
 
-        MintForest mfAccount1 = new MintForest(_appSettings.Credentials.First().WalletPrivateKey);
+        foreach (var account in _appSettings.Credentials) 
+        {
+            try
+            {
+                var wrapper = new MintForest(account.WalletPrivateKey);
+                if (await wrapper.Login())
+                {
+                    Console.WriteLine($"{account.AccountName} isimli hesaba başarı ile girildi!");
+                    _ = Task.Factory.StartNew(async() => {
+                        Bot bot = new Bot(wrapper,account.AccountName);
+                        await bot.Start();
+                    });
+                }
+            }
+            catch (Exception ex) 
+            {
+                Console.WriteLine($"{DateTime.Now} - {account.AccountName}: Hesaba giriş başarısız!");
+                Console.WriteLine(ex.Message);
+                //TODO: Send error to discord
+            }
+        }
 
-        var checkLogin = await mfAccount1.Login();
-
-        var info = await mfAccount1.GetUserInfo();
-        Console.WriteLine(info);
-        Console.ReadLine();
+        await Task.Delay(-1);
     }
 
     private static void LoadApplicationSettings()
@@ -25,6 +45,8 @@ internal class Program
         try
         {
             _appSettings = JsonFileManager.ReadCredentials();
+            DiscordWebHookManager.DiscordWebHook = _appSettings.WebHookURL;
+            DiscordWebHookManager.DiscordLogic();
         }
         catch (Exception ex)
         {
