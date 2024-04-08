@@ -1,0 +1,13 @@
+﻿namespace MintBlockchainWrapper;
+internal static class Config
+{
+    public static string UserAgent { get; } = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0";
+    public static string Referer { get; } = "https://www.mintchain.io/mint-forest";
+    public static string Origin { get; } = "https://www.mintchain.io";
+
+    public static string LoginEndpoint { get; } = "https://www.mintchain.io/api/tree/login";
+    public static string UserInfoEndpoint { get; } = "https://www.mintchain.io/api/tree/user-info";
+    public static string InjectMeEndpoint { get; } = "https://www.mintchain.io/api/tree/inject";
+    public static string ClaimEndpoint { get; } = "https://www.mintchain.io/api/tree/claim";
+    public static string EnergyListEndpoint { get; } = "https://www.mintchain.io/api/tree/energy-list";
+}
