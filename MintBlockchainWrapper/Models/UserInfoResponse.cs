@@ -40,13 +40,13 @@ public class AboutUser
     public int Signin { get; set; }
 
     [JsonPropertyName("code")]
-    public object Code { get; set; }
+    public string Code { get; set; }
 
     [JsonPropertyName("twitter")]
     public string Twitter { get; set; }
 
     [JsonPropertyName("discord")]
-    public object Discord { get; set; }
+    public string Discord { get; set; }
 
     [JsonPropertyName("status")]
     public string Status { get; set; }
@@ -54,11 +54,20 @@ public class AboutUser
     [JsonPropertyName("createdAt")]
     public DateTime CreatedAt { get; set; }
 
+    [JsonPropertyName("claimed")]
+    public int Claimed { get; set; }
+
+    [JsonPropertyName("addition")]
+    public string Addition { get; set; }
+
     [JsonPropertyName("invitePercent")]
     public int InvitePercent { get; set; }
 
     [JsonPropertyName("signs")]
     public List<Sign> Signs { get; set; }
+
+    [JsonPropertyName("stealCount")]
+    public int StealCount { get; set; }
 }
 
 public class UserInfoResponse

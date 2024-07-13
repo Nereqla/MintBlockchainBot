@@ -18,6 +18,9 @@ public class EnergyList
 
     [JsonPropertyName("freeze")]
     public bool Freeze { get; set; }
+
+    [JsonPropertyName("stealable")]
+    public bool? Stealable { get; set; }
 }
 
 public class EnergyListResponse

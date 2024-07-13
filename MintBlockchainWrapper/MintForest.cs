@@ -161,6 +161,107 @@ public class MintForest
         }
     }
 
+    public async Task<LeaderboardResponse> GetLeaderboard(int pageID)
+    {
+        if (!_isAuthenticated) return null;
+
+        using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, Config.GetLeaderboardEndpoint(pageID)))
+        {
+            using (var response = await _httpHelper.Client.SendAsync(request))
+            {
+                var responseContent = await response.Content.ReadAsStringAsync();
+                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                {
+                    throw new Exception("#401 Unauthorized GetUserInfo()");
+                }
+                if (response.IsSuccessStatusCode)
+                {
+                    return JsonSerializer.Deserialize<LeaderboardResponse>(responseContent);
+                }
+                else
+                {
+                    throw new Exception($"{response.StatusCode} Ele alınmayan kritik hata!\nResponse: {response.Content}");
+                }
+            }
+        }
+    }
+
+    public async Task<EnergyListResponse> GetStealEnergyList(int userID)
+    {
+        if (!_isAuthenticated) return null;
+
+        using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, Config.GetStealEnergyListEndpoint(userID)))
+        {
+            using (var response = await _httpHelper.Client.SendAsync(request))
+            {
+                var responseContent = await response.Content.ReadAsStringAsync();
+                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                {
+                    throw new Exception("#401 Unauthorized GetUserInfo()");
+                }
+                if (response.IsSuccessStatusCode)
+                {
+                    return JsonSerializer.Deserialize<EnergyListResponse>(responseContent);
+                }
+                else
+                {
+                    throw new Exception($"{response.StatusCode} Ele alınmayan kritik hata!\nResponse: {response.Content}");
+                }
+            }
+        }
+    }
+
+    public async Task<ClaimResponse> ClaimSteal(int userID)
+    {
+        if (!_isAuthenticated) return null;
+
+        using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, Config.GetStealClaimEndpoint(userID)))
+        {
+            using (var response = await _httpHelper.Client.SendAsync(request))
+            {
+                var responseContent = await response.Content.ReadAsStringAsync();
+                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                {
+                    throw new Exception("#401 Unauthorized GetUserInfo()");
+                }
+                if (response.IsSuccessStatusCode)
+                {
+                    return JsonSerializer.Deserialize<ClaimResponse>(responseContent);
+                }
+                else
+                {
+                    throw new Exception($"{response.StatusCode} Ele alınmayan kritik hata!\nResponse: {response.Content}");
+                }
+            }
+        }
+    }
+
+    public async Task<ActivityResponse> GetActivity(int treeID)
+    {
+        if (!_isAuthenticated) return null;
+
+        using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, Config.GetActivityEndPoint(treeID)))
+        {
+            using (var response = await _httpHelper.Client.SendAsync(request))
+            {
+                var responseContent = await response.Content.ReadAsStringAsync();
+                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                {
+                    throw new Exception("#401 Unauthorized GetUserInfo()");
+                }
+                if (response.IsSuccessStatusCode)
+                {
+                    return JsonSerializer.Deserialize<ActivityResponse>(responseContent);
+                }
+                else
+                {
+                    throw new Exception($"{response.StatusCode} Ele alınmayan kritik hata!\nResponse: {response.Content}");
+                }
+            }
+        }
+    }
+
+
     public TimeSpan GetNextDailyTime() => (DateTime.Today.AddDays(1).Date - DateTime.UtcNow);
 }
 
