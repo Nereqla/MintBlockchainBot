@@ -4,10 +4,10 @@ namespace MintBlockchainWrapper.Models;
 public class AboutUser
 {
     [JsonPropertyName("id")]
-    public int Id { get; set; }
+    public int? Id { get; set; }
 
     [JsonPropertyName("treeId")]
-    public int TreeId { get; set; }
+    public int? TreeId { get; set; }
 
     [JsonPropertyName("address")]
     public string Address { get; set; }
@@ -22,46 +22,46 @@ public class AboutUser
     public int Tree { get; set; }
 
     [JsonPropertyName("inviteId")]
-    public int InviteId { get; set; }
+    public int? InviteId { get; set; }
 
     [JsonPropertyName("type")]
     public string Type { get; set; }
 
     [JsonPropertyName("stake_id")]
-    public int StakeId { get; set; }
+    public int? StakeId { get; set; }
 
     [JsonPropertyName("nft_id")]
-    public int NftId { get; set; }
+    public int? NftId { get; set; }
 
     [JsonPropertyName("nft_pass")]
-    public int NftPass { get; set; }
+    public int? NftPass { get; set; }
 
     [JsonPropertyName("signin")]
-    public int Signin { get; set; }
+    public int? Signin { get; set; }
 
     [JsonPropertyName("code")]
-    public string Code { get; set; }
+    public object Code { get; set; }
 
     [JsonPropertyName("twitter")]
     public string Twitter { get; set; }
 
     [JsonPropertyName("discord")]
-    public string Discord { get; set; }
+    public object Discord { get; set; }
 
     [JsonPropertyName("status")]
     public string Status { get; set; }
 
     [JsonPropertyName("createdAt")]
-    public DateTime CreatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
 
     [JsonPropertyName("claimed")]
-    public int Claimed { get; set; }
+    public object Claimed { get; set; }
 
     [JsonPropertyName("addition")]
-    public string Addition { get; set; }
+    public object Addition { get; set; }
 
     [JsonPropertyName("invitePercent")]
-    public int InvitePercent { get; set; }
+    public int? InvitePercent { get; set; }
 
     [JsonPropertyName("signs")]
     public List<Sign> Signs { get; set; }
@@ -73,7 +73,7 @@ public class AboutUser
 public class UserInfoResponse
 {
     [JsonPropertyName("code")]
-    public int Code { get; set; }
+    public int? Code { get; set; }
 
     [JsonPropertyName("result")]
     public AboutUser Result { get; set; }
@@ -85,10 +85,19 @@ public class UserInfoResponse
 public class Sign
 {
     [JsonPropertyName("amount")]
-    public int Amount { get; set; }
+    public int? Amount { get; set; }
 
     [JsonPropertyName("type")]
     public string Type { get; set; }
+
+    [JsonPropertyName("day")]
+    public int? Day { get; set; }
+
+    [JsonPropertyName("boost")]
+    public string Boost { get; set; }
+
+    [JsonPropertyName("canFixSign")]
+    public bool? CanFixSign { get; set; }
 }
 
 

@@ -1,5 +1,6 @@
-﻿using MintBlockChainBotConsoleUI.Models;
-using MintBlockchainWrapper.Models;
+﻿using MintBlockchainBotConsoleUI.Helpers;
+using MintBlockchainBotConsoleUI.Models;
+using MintBlockChainBotConsoleUI.Models;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Encodings.Web;
@@ -75,6 +76,48 @@ internal class JsonFileManager
         catch
         {
             throw new Exception($"{_fileName} dosyası yazılamadı, izin sorunu olabilir!");
+        }
+    }
+
+
+
+    private static string _todaysLeaderboardFileName = DateTime.Now.ToString("dd_MM_yyyy") + "_leaderboard.json";
+    private static string _todaysCheckListFileName = DateTime.Now.ToString("dd_MM_yyyy") + "_checkedlist.json";
+    public static List<NotClaimedUsers>? GetNotClaimedUsersIfExists()
+    {
+        if (File.Exists(_todaysCheckListFileName))
+        {
+            return JsonSerializer.Deserialize<List<NotClaimedUsers>>(File.ReadAllText(_todaysCheckListFileName));
+        }
+        else
+        {
+            return null;
+        }
+    }
+
+    public static void SaveNotClaimedUsersToFile(List<NotClaimedUsers> leaderboardDailyList)
+    {
+        try
+        {
+            File.WriteAllText(_todaysCheckListFileName, JsonSerializer.Serialize(leaderboardDailyList));
+        }
+        catch(Exception ex)
+        {
+            Console.WriteLine(DateTime.Now + " - SaveNotClaimedUsersToFile methodunda bir hata oluştu, hata loglandı.");
+            ExceptionLogger.Log(ex);
+        }
+    }
+
+    public static void SaveSteableUsersToFile(List<StealableUser> stealableUsers)
+    {
+        try
+        {
+            File.WriteAllText(_todaysCheckListFileName, JsonSerializer.Serialize(stealableUsers));
+        }
+        catch(Exception ex)
+        {
+            Console.WriteLine(DateTime.Now + " - SaveSteableUsersToFile methodunda bir hata oluştu, hata loglandı.");
+            ExceptionLogger.Log(ex);
         }
     }
 }

@@ -226,7 +226,7 @@ public class MintForest
                 }
                 if (response.IsSuccessStatusCode)
                 {
-                    return JsonSerializer.Deserialize<ClaimResponse>(responseContent);
+                   return JsonSerializer.Deserialize<ClaimResponse>(responseContent);
                 }
                 else
                 {

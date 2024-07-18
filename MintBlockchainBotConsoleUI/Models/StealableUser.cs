@@ -1,5 +1,5 @@
 ﻿namespace MintBlockchainBotConsoleUI.Models;
-internal class StealableUsers
+internal class StealableUser
 {
     public int UserId { get; set; }
     public int TreeId { get; set; }
