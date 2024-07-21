@@ -82,12 +82,12 @@ internal class JsonFileManager
 
 
     private static string _todaysLeaderboardFileName = DateTime.Now.ToString("dd_MM_yyyy") + "_leaderboard.json";
-    private static string _todaysCheckListFileName = DateTime.Now.ToString("dd_MM_yyyy") + "_checkedlist.json";
-    public static List<NotClaimedUsers>? GetNotClaimedUsersIfExists()
+    private static string _todaysStealableListFileName = DateTime.Now.ToString("dd_MM_yyyy") + "_checkedlist.json";
+    public static List<NotClaimedUsers>? LoadNotClaimedLeaderboardUsersIfExists()
     {
-        if (File.Exists(_todaysCheckListFileName))
+        if (File.Exists(_todaysLeaderboardFileName))
         {
-            return JsonSerializer.Deserialize<List<NotClaimedUsers>>(File.ReadAllText(_todaysCheckListFileName));
+            return JsonSerializer.Deserialize<List<NotClaimedUsers>>(File.ReadAllText(_todaysLeaderboardFileName));
         }
         else
         {
@@ -95,11 +95,23 @@ internal class JsonFileManager
         }
     }
 
-    public static void SaveNotClaimedUsersToFile(List<NotClaimedUsers> leaderboardDailyList)
+    public static List<StealableUser> LoadStealableUsersIfExists()
+    {
+        if (File.Exists(_todaysStealableListFileName))
+        {
+            return JsonSerializer.Deserialize<List<StealableUser>>(File.ReadAllText(_todaysStealableListFileName));
+        }
+        else
+        {
+            return null;
+        }
+    }
+
+    public static void SaveNotClaimedLeaderboardUsersToFile(List<NotClaimedUsers> leaderboardDailyList)
     {
         try
         {
-            File.WriteAllText(_todaysCheckListFileName, JsonSerializer.Serialize(leaderboardDailyList));
+            File.WriteAllText(_todaysLeaderboardFileName, JsonSerializer.Serialize(leaderboardDailyList));
         }
         catch(Exception ex)
         {
@@ -112,7 +124,7 @@ internal class JsonFileManager
     {
         try
         {
-            File.WriteAllText(_todaysCheckListFileName, JsonSerializer.Serialize(stealableUsers));
+            File.WriteAllText(_todaysStealableListFileName, JsonSerializer.Serialize(stealableUsers));
         }
         catch(Exception ex)
         {

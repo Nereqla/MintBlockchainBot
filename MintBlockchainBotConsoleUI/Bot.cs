@@ -29,7 +29,7 @@ internal class Bot
         {
             try
             {
-                //await StealPointsFromUsersLogic();
+                StealPointsFromUsersLogic();
 
                 var getEnergyResponse = await GetEnergyListAndClaim();
 
@@ -171,13 +171,13 @@ internal class Bot
         else Log("Saat 14:30'u geçmiş. Sıralamadaki oyuncular kontrol ediliyor.");
 
 
-        List<NotClaimedUsers> usersNotClaimedDaily = JsonFileManager.GetNotClaimedUsersIfExists();
+        List<NotClaimedUsers> usersNotClaimedDaily = JsonFileManager.LoadNotClaimedLeaderboardUsersIfExists();
 
         if (usersNotClaimedDaily is null)
         {
             Log("Kayıtlı leaderboard listeli bulunamadı, kontrol edilecek.");
             usersNotClaimedDaily = await FindUsersNotClaimedDaily();
-            JsonFileManager.SaveNotClaimedUsersToFile(usersNotClaimedDaily);
+            JsonFileManager.SaveNotClaimedLeaderboardUsersToFile(usersNotClaimedDaily);
             Log("Kayıt başarılı.");
         }
         else Log("Kayıtlı liste içeri aktarıldı!");
@@ -194,7 +194,11 @@ internal class Bot
         else Log("Çalma çırpma saati geçmiş bile! Elimizi çabuk tutalım!");
 
 
-        var stealableUsers = await ScanUsersAmount(usersNotClaimedDaily);
+        List<StealableUser> stealableUsers = JsonFileManager.LoadStealableUsersIfExists();
+        if (stealableUsers is null)
+        {
+            stealableUsers = await ScanUsersAmount(usersNotClaimedDaily);
+        }
         stealableUsers.Sort((x, y) => y.Amount.CompareTo(x.Amount));
 
         //start collecting
@@ -215,7 +219,6 @@ internal class Bot
         else Log("5 de 5 çalma çırpma işlemi tamamlandı. Yarın tekrar görüşmek üzere.");
 
 
-        var steableUsersTest = stealableUsers;
     }
 
     /// <summary>
@@ -225,7 +228,7 @@ internal class Bot
     /// <returns></returns>
     private async Task StealME(StealableUser user)
     {
-        int maxRetries = 20;
+        int maxRetries = 30;
         int counter = 1;
 
         // Sonsuz döngü olmasın diye.
@@ -242,7 +245,7 @@ internal class Bot
                 ExceptionLogger.Log(ex);
                 Log("[Hata] - Kaynak: StealME() - Mesajı" + ex.Message);
                 Log("Tekrar DENENİYOR!!!");
-                await Task.Delay(TimeSpan.FromSeconds(1));
+                await Task.Delay(TimeSpan.FromSeconds(8));
                 continue;
             }
 
@@ -256,12 +259,12 @@ internal class Bot
             {
                 //try again after delay
                 Log("Frequent operations. Tekrar denenecek!");
-                await Task.Delay(TimeSpan.FromSeconds(8));
+                await Task.Delay(TimeSpan.FromSeconds(12));
                 continue;
             }
             else if (tempResponse.Msg.Contains("collected by someone else"))
             {
-                Log("5 times per day. Bunu çoktan kapmışlar!");
+                Log("Bunu çoktan kapmışlar!");
                 break;
             }
             else if (tempResponse.Msg.Contains("ok"))
@@ -270,13 +273,22 @@ internal class Bot
                 CurrentStealCount++;
                 break;
             }
+            else if (tempResponse.Msg.Contains("Invalid User"))
+            {
+                Log($"Bu kullanıcı bulunamadı! || User ID: {user.UserId} - Tree ID: {user.TreeId} - Amount: {user.Amount} | Bu kaçtı!");
+                await Task.Delay(TimeSpan.FromSeconds(3));
+
+                break;
+            }
             else
             {
-                Log("TANIMLANAMAYAN HATA");
+                Log("StealME() - TANIMLANAMAYAN HATA");
+                Log($"\nMalum response:\n\n Msg:{tempResponse.Msg}\nStatus:{tempResponse.Code}\n\n");
+                Log($"User ID: {user.UserId} - Tree ID: {user.TreeId} - Amount: {user.Amount} | Bu kaçtı!\n");
                 break;
             }
         }
-        if (counter > maxRetries) Log($"FindUsersNotClaimedDaily() Methodu genel tekrar sayısını aştı. ({maxRetries})");
+        if (counter > maxRetries) Log($"FindUsersNotClaimedDaily() Methodu genel tekrar sayısını aştı. ({maxRetries}) | Kaçırılan Amount: {user.Amount}");
         await Task.Delay(TimeSpan.FromSeconds(12));
     }
 
@@ -284,11 +296,10 @@ internal class Bot
     {
         int retry = 0;
         int counter = 1;
-        int maxRetryInARow = 5;
+        int maxRetryInARow = 15;
         int minAmountToCollect = 2000;
         bool collectIfAmmountHigher = true;
 
-        List<NotClaimedUsers> alreadyClaimedUsers = new List<NotClaimedUsers>();
         List<StealableUser> tempStealableUsers = new List<StealableUser>();
         foreach (var notClaimedUser in usersNotClaimedDaily)
         {
@@ -304,13 +315,13 @@ internal class Bot
                         int amount = checkenergyList.Result.First().Amount;
                         if (amount >= minAmountToCollect && collectIfAmmountHigher && CurrentStealCount < 5)
                         {
+                            Log($"Wow! {minAmountToCollect} üstü puan bulundu! => Miktar: {amount}");
                             await StealME(new StealableUser()
                             {
                                 Amount = amount,
                                 TreeId = notClaimedUser.TreeId,
                                 UserId = notClaimedUser.UserId,
                             });
-                            Log($"Wow! 3000 üstü puan toplandı! => Miktar: {amount}");
                             break;
                         }
 
@@ -323,11 +334,6 @@ internal class Bot
 
                         JsonFileManager.SaveSteableUsersToFile(tempStealableUsers);
                         Log($"Listeye eklendi {amount} | => TreeId: {notClaimedUser.TreeId} - UserID: {notClaimedUser.UserId}");
-                    }
-                    else
-                    {
-                        alreadyClaimedUsers.Add(notClaimedUser);
-                        // TODO: eğer çalınmışsa veya zaten toplanmışsa listeden kaldır ve kaydet.
                     }
                     counter++;
                     await Task.Delay(600);
@@ -342,8 +348,7 @@ internal class Bot
                         var dflkgjdfg = ex;
                         tryAgain = true;
                         retry++;
-
-                        Log($"deneme sayısı: {retry} ");
+                        Log($"!deneme sayısı: {retry} ");
                         Log($"[ScanUsersAmount] - HATA! - Hata Mesajı: {ex.Message}");
                         await Task.Delay(TimeSpan.FromSeconds(8));
                     }

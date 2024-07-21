@@ -132,7 +132,7 @@ public class MintForest
         }
     }
 
-    public async Task<ClaimResponse> Claim(ClaimRequestBody requestBody)
+    public async Task<NormalClaim> Claim(ClaimRequestBody requestBody)
     {
         if (!_isAuthenticated) return null;
 
@@ -150,7 +150,7 @@ public class MintForest
                     }
                     if (response.IsSuccessStatusCode)
                     {
-                        return JsonSerializer.Deserialize<ClaimResponse>(responseContent);
+                        return JsonSerializer.Deserialize<NormalClaim>(responseContent);
                     }
                     else
                     {
