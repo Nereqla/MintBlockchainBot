@@ -15,11 +15,13 @@ internal class Program
 
         LoadApplicationSettings();
 
+
+        _appSettings.Credentials.RemoveAt(0);
         foreach (var account in _appSettings.Credentials) 
         {
             try
             {
-                var wrapper = new MintForest(account.WalletPrivateKey);
+                var wrapper = new MintForest(account.WalletPrivateKey, account.Proxy);
                 if (await wrapper.Login())
                 {
                     Console.WriteLine($"{account.AccountName} isimli hesaba başarı ile girildi!");

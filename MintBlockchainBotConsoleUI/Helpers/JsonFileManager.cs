@@ -1,6 +1,7 @@
 ﻿using MintBlockchainBotConsoleUI.Helpers;
 using MintBlockchainBotConsoleUI.Models;
 using MintBlockChainBotConsoleUI.Models;
+using MintBlockchainWrapper.Models;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Encodings.Web;
@@ -12,6 +13,7 @@ internal class JsonFileManager
 {
     private static string _fileName = "Settings.json";
     private static string _appPath = AppDomain.CurrentDomain.BaseDirectory;
+
     public static ApplicationSettings ReadCredentials()
     {
         ApplicationSettings accounts = null;
@@ -39,6 +41,11 @@ internal class JsonFileManager
         return accounts;
     }
 
+    static JsonFileManager()
+    {
+        RemoveOldFiles();
+    }
+
     private static void CreateCredentialsFile()
     {
         // Önceki dosyayı yedekle.
@@ -59,7 +66,15 @@ internal class JsonFileManager
                 {
                     AccountName = "",
                     WalletPrivateKey = "",
-                }
+                    Proxy = new Proxy()
+                    {
+                        IP = "ip",
+                        Password = "password",
+                        Port = 2423,
+                        Type = ProxyType.Https,
+                        UserName = "username",
+                    }
+                },
             }
 
         }, new JsonSerializerOptions()
@@ -81,13 +96,15 @@ internal class JsonFileManager
 
 
 
-    private static string _todaysLeaderboardFileName = DateTime.Now.ToString("dd_MM_yyyy") + "_leaderboard.json";
-    private static string _todaysStealableListFileName = DateTime.Now.ToString("dd_MM_yyyy") + "_checkedlist.json";
-    public static List<NotClaimedUsers>? LoadNotClaimedLeaderboardUsersIfExists()
+    private static string _todaysLeaderboardListFileName => DateTime.Now.ToString("dd_MM_yyyy") + "_leaderboard";
+    private static string _todaysStealableListFileName => DateTime.Now.ToString("dd_MM_yyyy") + "_checkedlist";
+
+    public static List<NotClaimedUsers>? LoadNotClaimedLeaderboardUsersIfExists(string accountName)
     {
-        if (File.Exists(_todaysLeaderboardFileName))
+        var name = _todaysLeaderboardListFileName + $"_{accountName}.json";
+        if (File.Exists(name))
         {
-            return JsonSerializer.Deserialize<List<NotClaimedUsers>>(File.ReadAllText(_todaysLeaderboardFileName));
+            return JsonSerializer.Deserialize<List<NotClaimedUsers>>(File.ReadAllText(name));
         }
         else
         {
@@ -95,11 +112,12 @@ internal class JsonFileManager
         }
     }
 
-    public static List<StealableUser> LoadStealableUsersIfExists()
+    public static List<StealableUser> LoadStealableUsersIfExists(string accountName)
     {
-        if (File.Exists(_todaysStealableListFileName))
+        var name = _todaysStealableListFileName + $"_{accountName}.json";
+        if (File.Exists(name))
         {
-            return JsonSerializer.Deserialize<List<StealableUser>>(File.ReadAllText(_todaysStealableListFileName));
+            return JsonSerializer.Deserialize<List<StealableUser>>(File.ReadAllText(name));
         }
         else
         {
@@ -107,11 +125,12 @@ internal class JsonFileManager
         }
     }
 
-    public static void SaveNotClaimedLeaderboardUsersToFile(List<NotClaimedUsers> leaderboardDailyList)
+    public static void SaveNotClaimedLeaderboardUsersToFile(List<NotClaimedUsers> leaderboardDailyList, string accountName)
     {
+        var name = _todaysLeaderboardListFileName + $"_{accountName}.json";
         try
         {
-            File.WriteAllText(_todaysLeaderboardFileName, JsonSerializer.Serialize(leaderboardDailyList));
+            File.WriteAllText(name, JsonSerializer.Serialize(leaderboardDailyList));
         }
         catch(Exception ex)
         {
@@ -120,16 +139,39 @@ internal class JsonFileManager
         }
     }
 
-    public static void SaveSteableUsersToFile(List<StealableUser> stealableUsers)
+    public static void SaveSteableUsersToFile(List<StealableUser> stealableUsers, string accountName)
     {
+        var name = _todaysStealableListFileName + $"_{accountName}.json";
         try
         {
-            File.WriteAllText(_todaysStealableListFileName, JsonSerializer.Serialize(stealableUsers));
+            File.WriteAllText(name, JsonSerializer.Serialize(stealableUsers));
         }
         catch(Exception ex)
         {
             Console.WriteLine(DateTime.Now + " - SaveSteableUsersToFile methodunda bir hata oluştu, hata loglandı.");
             ExceptionLogger.Log(ex);
+        }
+    }
+
+    public static void RemoveOldFiles()
+    {
+        string todaysDate = DateTime.Now.ToString("dd_MM_yyyy");
+
+        var files = Directory.GetFiles(AppDomain.CurrentDomain.BaseDirectory);
+
+        foreach (var file in files)
+        {
+            var info = new FileInfo(file);
+            if (info.Name.Contains("_leaderboard"))
+            {
+                var namesDate = info.Name.Split("_lead").First();
+                if (namesDate != todaysDate) info.Delete();
+            }
+            else if (info.Name.Contains("_checkedlist"))
+            {
+                var namesDate = info.Name.Split("_check").First();
+                if (namesDate != todaysDate) info.Delete();
+            }
         }
     }
 }

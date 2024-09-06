@@ -17,7 +17,6 @@ internal class Bot
         _accountName = accountName;
 
 
-        //TODO: Stealableusers json dosyasından yüklenecek, json dosyasına kaydedilecek.
         _steableUsers = new List<StealableUser>();
     }
 
@@ -29,39 +28,87 @@ internal class Bot
         {
             try
             {
-                StealPointsFromUsersLogic();
+                await _mfWrapper.PerformContractSteal("0x8e90af030000000000000000000000000a34ec7e4e2691d0a403acd885366699ee9fe9010000000000000000000000000000000000000000000000000000000066d8f480000000000000000000000000000000000000000000000000000000000000006400000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000041c1e73fd96f04ee89e72a9e3d428084779e3e081756a903689b69d980ea46c097310fc4698ecefb1ba5cfbd84ad7239a36df393b571c208e34f30bfc4daff26631b00000000000000000000000000000000000000000000000000000000000000");
 
-                var getEnergyResponse = await GetEnergyListAndClaim();
+
+                var stealpoints = StealPointsFromUsersLogic();
+
+                await GetEnergyListAndClaim();
 
                 var userInfo = await GetUserInfoAndInject();
 
                 var nextCheck = _mfWrapper.GetNextDailyTime().
-                    Add(TimeSpan.FromHours(_rnd.Next(3, 9))).
+                    Add(TimeSpan.FromHours(_rnd.Next(3, 8))).
                     Add(TimeSpan.FromMinutes(_rnd.Next(5, 45)));
 
 
                 int totalTreePoint = userInfo.Result.Tree + userInfo.Result.Energy;
                 await Log($"Tree: {totalTreePoint}");
-                await Log($"Toplama işlemi bitti, sıradaki toplama ertesi gün {DateTime.Now.Add(nextCheck).ToString("HH:mm:ss")} saatinde!");
+                await Log($"Toplama işlemi bitti");
 
-                if (DiscordWebHookManager.State)
+                DiscordWebHookManager.MessageQueue.Enqueue(new DiscordMessage()
                 {
+                    AccountName = _accountName,
+                    IsError = false,
+                    Messages = new List<string>()
+                        {
+                            $"Toplama işlemi bitti.",
+                            $"__Tree:__|{totalTreePoint}",
+                            $"__Sonraki İşlem:__| Yarın {DateTime.Now.Add(nextCheck).ToString("HH:mm:ss")} saatinde!"
+                        },
+                });
+
+                //InformDiscord(() => {
+                //    DiscordWebHookManager.MessageQueue.Enqueue(new DiscordMessage()
+                //    {
+                //        AccountName = _accountName,
+                //        IsError = false,
+                //        Messages = new List<string>()
+                //        {
+                //            $"Toplama işlemi bitti.",
+                //            $"__Tree:__|{totalTreePoint}",
+                //            $"__Sonraki İşlem:__| Yarın {DateTime.Now.Add(nextCheck).ToString("HH:mm:ss")} saatinde!"
+                //        },
+                //    });
+                //});
+
+                await stealpoints;
+                await Log("Çalma çırpma işlemi de bitti...");
+
+                await GetUserInfoAndInject();
+
+                InformDiscord(() => {
                     DiscordWebHookManager.MessageQueue.Enqueue(new DiscordMessage()
                     {
                         AccountName = _accountName,
                         IsError = false,
                         Messages = new List<string>()
                         {
+                            $"Çalma çırpma işlemleri bitti!",
                             $"__Tree:__|{totalTreePoint}",
-                            $"__Sonraki İşlem:__| Yarın {DateTime.Now.Add(nextCheck).ToString("HH:mm:ss")} saatinde!"
                         },
                     });
-                }
+                });
 
+                JsonFileManager.RemoveOldFiles();
+                await Log($"Sıradaki toplama ertesi gün {DateTime.Now.Add(nextCheck).ToString("HH:mm:ss")} saatinde!");
                 await Task.Delay(nextCheck);
             }
-                catch (Exception ex)
+            catch (Exception ex)
             {
+                InformDiscord(() => {
+                    DiscordWebHookManager.MessageQueue.Enqueue(new DiscordMessage()
+                    {
+                        AccountName = _accountName,
+                        IsError = true,
+                        Messages = new List<string>()
+                        {
+                            $"Kritik bir hata gerçekleşti!!",
+                            $"{ex.Message.ToLower()}",
+                            $"__ReLoginState:__ {tryReLoginOnce}",
+                        },
+                    });
+                });
                 ExceptionLogger.Log(ex);
                 if (ex.Message.ToLower().Contains("unauthorized") && tryReLoginOnce)
                 {
@@ -80,6 +127,15 @@ internal class Bot
         }
     }
 
+    private async Task InformDiscord(Action action)
+    {
+        if (DiscordWebHookManager.State)
+        {
+            action.Invoke();
+        }
+        else await Log($"Discord web hook bağlantısı girilmediği için discord bilgilendirmesi yapılmadı.");
+    }
+
     private async Task<EnergyListResponse> GetEnergyListAndClaim()
     {
         await Log("Ödüller kontrol ediliyor..");
@@ -90,28 +146,40 @@ internal class Bot
             throw new Exception($"(getEnergyResponse) Kritik hata: {getEnergyResponse?.ErrorMessage}");
         }
 
-        var daily = getEnergyResponse.Result.Find(x => x.Type.ToLower() == "daily");
+        var collectables = getEnergyResponse.Result;
 
         // TODO: Döngü kurulabilirdi ama EnergyList'in henüz 1'den fazla toplanabilir değer döndüğünü görmedim. İleride gerekirse eklenir.
-        await Task.Delay(_rnd.Next(500, 2500));
-        if (!daily.Freeze)
+        await Task.Delay(_rnd.Next(750, 1750));
+
+        if (collectables.Count <= 0)
         {
-            var claimResponse = await _mfWrapper.Claim(new ClaimRequestBody()
-            {
-                Uid = daily.Uid,
-                Amount = daily.Amount,
-                Includes = daily.Includes,
-                Type = daily.Type,
-                Freeze = daily.Freeze,
-                Id = $"{daily.Amount}_",
-            });
-            if (claimResponse is null)
-            {
-                throw new Exception($"(injectMeResponse) Kritik hata");
-            }
-            await Log("Günlük ödül alındı!");
+            await Log("Toplanabilir her şey zaten toplanmış.");
+            return getEnergyResponse;
         }
-        else await Log("Günlük ödül zaten alınmış!");
+
+        foreach (var collectable in collectables)
+        {
+            if (!collectable.Freeze)
+            {
+                var claimResponse = await _mfWrapper.Claim(new ClaimRequestBody()
+                {
+                    Uid = collectable.Uid,
+                    Amount = collectable.Amount,
+                    Includes = collectable.Includes,
+                    Type = collectable.Type,
+                    Freeze = collectable.Freeze,
+                    Id = $"{collectable.Amount}_",
+                });
+                if (claimResponse is null)
+                {
+                    throw new Exception($"(Claim) Kritik hata - 567889234");
+                }
+                else if (claimResponse.Msg.ToLower().Contains("ok"))
+                {
+                    await Log($"Toplandı: "+collectable.Amount);
+                }
+            }
+        }
 
         return getEnergyResponse;
     }
@@ -171,13 +239,13 @@ internal class Bot
         else Log("Saat 14:30'u geçmiş. Sıralamadaki oyuncular kontrol ediliyor.");
 
 
-        List<NotClaimedUsers> usersNotClaimedDaily = JsonFileManager.LoadNotClaimedLeaderboardUsersIfExists();
+        List<NotClaimedUsers> usersNotClaimedDaily = JsonFileManager.LoadNotClaimedLeaderboardUsersIfExists(_accountName);
 
         if (usersNotClaimedDaily is null)
         {
             Log("Kayıtlı leaderboard listeli bulunamadı, kontrol edilecek.");
             usersNotClaimedDaily = await FindUsersNotClaimedDaily();
-            JsonFileManager.SaveNotClaimedLeaderboardUsersToFile(usersNotClaimedDaily);
+            JsonFileManager.SaveNotClaimedLeaderboardUsersToFile(usersNotClaimedDaily,_accountName);
             Log("Kayıt başarılı.");
         }
         else Log("Kayıtlı liste içeri aktarıldı!");
@@ -194,7 +262,7 @@ internal class Bot
         else Log("Çalma çırpma saati geçmiş bile! Elimizi çabuk tutalım!");
 
 
-        List<StealableUser> stealableUsers = JsonFileManager.LoadStealableUsersIfExists();
+        List<StealableUser> stealableUsers = JsonFileManager.LoadStealableUsersIfExists(_accountName);
         if (stealableUsers is null)
         {
             stealableUsers = await ScanUsersAmount(usersNotClaimedDaily);
@@ -216,9 +284,6 @@ internal class Bot
         {
             Log("Sıralama tablosundaki tüm kullanıcılar bitti ama hala yeterince toplayamadık. Üzgünüm.");
         }
-        else Log("5 de 5 çalma çırpma işlemi tamamlandı. Yarın tekrar görüşmek üzere.");
-
-
     }
 
     /// <summary>
@@ -228,7 +293,7 @@ internal class Bot
     /// <returns></returns>
     private async Task StealME(StealableUser user)
     {
-        int maxRetries = 30;
+        int maxRetries = 15;
         int counter = 1;
 
         // Sonsuz döngü olmasın diye.
@@ -248,6 +313,7 @@ internal class Bot
                 await Task.Delay(TimeSpan.FromSeconds(8));
                 continue;
             }
+            if (tempResponse.Msg is null) break;
 
             if (tempResponse.Msg.Contains("5 times per day."))
             {
@@ -259,7 +325,7 @@ internal class Bot
             {
                 //try again after delay
                 Log("Frequent operations. Tekrar denenecek!");
-                await Task.Delay(TimeSpan.FromSeconds(12));
+                await Task.Delay(TimeSpan.FromSeconds(15));
                 continue;
             }
             else if (tempResponse.Msg.Contains("collected by someone else"))
@@ -297,7 +363,7 @@ internal class Bot
         int retry = 0;
         int counter = 1;
         int maxRetryInARow = 15;
-        int minAmountToCollect = 2000;
+        int minAmountToCollect = 1000;
         bool collectIfAmmountHigher = true;
 
         List<StealableUser> tempStealableUsers = new List<StealableUser>();
@@ -316,12 +382,12 @@ internal class Bot
                         if (amount >= minAmountToCollect && collectIfAmmountHigher && CurrentStealCount < 5)
                         {
                             Log($"Wow! {minAmountToCollect} üstü puan bulundu! => Miktar: {amount}");
-                            await StealME(new StealableUser()
-                            {
-                                Amount = amount,
-                                TreeId = notClaimedUser.TreeId,
-                                UserId = notClaimedUser.UserId,
-                            });
+                            //await StealME(new StealableUser()
+                            //{
+                            //    Amount = amount,
+                            //    TreeId = notClaimedUser.TreeId,
+                            //    UserId = notClaimedUser.UserId,
+                            //});
                             break;
                         }
 
@@ -332,7 +398,7 @@ internal class Bot
                             UserId = notClaimedUser.UserId,
                         });
 
-                        JsonFileManager.SaveSteableUsersToFile(tempStealableUsers);
+                        JsonFileManager.SaveSteableUsersToFile(tempStealableUsers, _accountName);
                         Log($"Listeye eklendi {amount} | => TreeId: {notClaimedUser.TreeId} - UserID: {notClaimedUser.UserId}");
                     }
                     counter++;

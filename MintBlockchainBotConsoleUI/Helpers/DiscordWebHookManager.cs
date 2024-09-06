@@ -55,7 +55,7 @@ internal class DiscordWebHookManager
                 if (errorqueue.Count > 0)
                     await SendErrorMessageQueue(errorqueue);
             }
-            await Task.Delay(TimeSpan.FromSeconds(60));
+            await Task.Delay(TimeSpan.FromSeconds(10));
         }
     }
 
@@ -71,11 +71,9 @@ internal class DiscordWebHookManager
 
         for (int i = 0; i < message.Messages.Count; i++)
         {
-            var parts = message.Messages[i].Split('|');
-
             embed.Fields.Add(new Field()
             {
-                Name = $"{parts[0]} {parts[1]}",
+                Name = $"{message.Messages[i]}",
                 Value = ".",
             });
         }

@@ -1,5 +1,4 @@
 ﻿using Nethereum.Signer;
-using System.Net.NetworkInformation;
 namespace MintBlockchainWrapper.Helpers;
 
 internal static class NethereumHelper

@@ -8,14 +8,14 @@ using System.Text.Json;
 namespace MintBlockchainWrapper;
 internal class Authorization
 {
-    private string _privateKey { get; set; }
+    public string PrivateKey { get; set; }
     private string _publicKey { get; set; }
     private LoginResponse _loginResponse { get; set; }
     private HttpHelper _httpHelper;
     public Authorization(string privateKey, HttpHelper httpHelper)
     {
-        _privateKey = privateKey;
-        _publicKey = NethereumHelper.GetPublicKey(_privateKey);
+        PrivateKey = privateKey;
+        _publicKey = NethereumHelper.GetPublicKey(PrivateKey);
         _httpHelper = httpHelper;
 
     }
@@ -47,7 +47,7 @@ internal class Authorization
         {
             Address = _publicKey,
             Message = msg,
-            Signature = NethereumHelper.GetSignature(msg, _privateKey)
+            Signature = NethereumHelper.GetSignature(msg, PrivateKey)
         };
 
         using (var content = new StringContent(JsonSerializer.Serialize(requestbody)))

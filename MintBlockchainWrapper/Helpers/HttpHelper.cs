@@ -6,9 +6,10 @@ internal class HttpHelper
 {
     public HttpClient Client = new HttpClient();
 
-    private Proxy? Proxy { get; set; }
-    public HttpHelper()
+    private Proxy? _proxy { get; set; }
+    public HttpHelper(Proxy proxy)
     {
+        _proxy = proxy;
         SetHttpClient();
     }
 
@@ -17,16 +18,16 @@ internal class HttpHelper
     {
         HttpClientHandler handler = new HttpClientHandler() { AutomaticDecompression = DecompressionMethods.All };
 
-        if (Proxy is not null && Proxy.Type != ProxyType.None && !string.IsNullOrWhiteSpace(Proxy.IP) && Proxy.Port > 0)
+        if (_proxy is not null && _proxy.Type != ProxyType.None && !string.IsNullOrWhiteSpace(_proxy.IP) && _proxy.Port > 0)
         {
-            if (!string.IsNullOrWhiteSpace(Proxy.UserName) && !string.IsNullOrWhiteSpace(Proxy.Password))
+            if (!string.IsNullOrWhiteSpace(_proxy.UserName) && !string.IsNullOrWhiteSpace(_proxy.Password))
             {
-                var credentials = new NetworkCredential(Proxy.UserName, Proxy.Password);
-                handler.Proxy = new WebProxy($"{Proxy.IP}:{Proxy.Port}", true, null, credentials);
+                var credentials = new NetworkCredential(_proxy.UserName, _proxy.Password);
+                handler.Proxy = new WebProxy($"{_proxy.IP}:{_proxy.Port}", true, null, credentials);
             }
             else
             {
-                handler.Proxy = new WebProxy(Proxy.IP, Proxy.Port);
+                handler.Proxy = new WebProxy(_proxy.IP, _proxy.Port);
             }
         }
 

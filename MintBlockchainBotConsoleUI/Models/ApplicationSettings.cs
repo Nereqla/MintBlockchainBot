@@ -5,6 +5,7 @@ public class Credential
 {
     public string AccountName { get; set; }
     public string WalletPrivateKey { get; set; }
+    public Proxy? Proxy { get; set; }
 }
 
 public class ApplicationSettings

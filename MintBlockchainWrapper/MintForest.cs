@@ -1,19 +1,21 @@
 ﻿using MintBlockchainWrapper;
 using MintBlockchainWrapper.Helpers;
 using MintBlockchainWrapper.Models;
+using Nethereum.Web3;
 using System.Text;
 using System.Text.Json;
 
 namespace MintBlockchainBot;
 public class MintForest
 {
-    private HttpHelper _httpHelper = new HttpHelper();
+    private HttpHelper _httpHelper;
     private Authorization _authorization;
     private string _bearerToken = String.Empty;
     private string _publicKey = String.Empty;
     private bool _isAuthenticated = false;
-    public MintForest(string privateKey)
+    public MintForest(string privateKey, Proxy proxy = null)
     {
+        _httpHelper = new HttpHelper(proxy);
         _authorization = new Authorization(privateKey, _httpHelper);
         _publicKey = NethereumHelper.GetPublicKey(privateKey);
     }
@@ -262,8 +264,43 @@ public class MintForest
     }
 
 
+    public async Task<bool> PerformContractSteal(string txData)
+    {
+        try
+        {
+            var rpcUrl = "https://rpc.mintchain.io";
+            var account = new Nethereum.Web3.Accounts.Account(_authorization.PrivateKey);
+            var web3 = new Web3(account, rpcUrl);
+            var contractAddress = "0x12906892AaA384ad59F2c431867af6632c68100a";
+
+            string transactionHash = await web3.TransactionManager.SendTransactionAsync(new Nethereum.RPC.Eth.DTOs.TransactionInput
+            {
+                From = account.Address,
+                To = contractAddress,
+                Data = txData,
+                Gas = new Nethereum.Hex.HexTypes.HexBigInteger(100000),
+                GasPrice = new Nethereum.Hex.HexTypes.HexBigInteger(Web3.Convert.ToWei(0.0001, Nethereum.Util.UnitConversion.EthUnit.Gwei)),
+                Value = new Nethereum.Hex.HexTypes.HexBigInteger(0)
+            });
+
+            var checkHash = await web3.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(transactionHash);
+            if (checkHash != null)
+            {
+                return checkHash.Status.Value == 0 ? false : true;
+            }
+            else return false;
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("public async Task<bool> PerformContractSteal(string txData) İMZALI METHODDA BİR HATA MEYDANA GELDİ \n");
+            Console.WriteLine(ex.ToString() + " \n");
+            return false;
+        }
+
+    }
+
+
     public TimeSpan GetNextDailyTime() => (DateTime.Today.AddDays(1).Date - DateTime.UtcNow);
 }
-
-
 
