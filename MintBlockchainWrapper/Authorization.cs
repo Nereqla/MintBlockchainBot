@@ -1,5 +1,7 @@
 ﻿using MintBlockchainWrapper.Helpers;
 using MintBlockchainWrapper.Models;
+using Nethereum.Web3;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;

@@ -1,6 +1,7 @@
 ﻿using MintBlockchainWrapper;
 using MintBlockchainWrapper.Helpers;
 using MintBlockchainWrapper.Models;
+using Nethereum.RPC.Eth.DTOs;
 using Nethereum.Web3;
 using System.Text;
 using System.Text.Json;
@@ -213,11 +214,11 @@ public class MintForest
         }
     }
 
-    public async Task<ClaimResponse> ClaimSteal(int userID)
+    public async Task<ChainResponse<T>> GetTransactionData<T>(TransactionType type, int userID = 0)
     {
         if (!_isAuthenticated) return null;
 
-        using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, Config.GetStealClaimEndpoint(userID)))
+        using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, Config.GetTransactionDataEndpoint(type,userID)))
         {
             using (var response = await _httpHelper.Client.SendAsync(request))
             {
@@ -228,7 +229,7 @@ public class MintForest
                 }
                 if (response.IsSuccessStatusCode)
                 {
-                   return JsonSerializer.Deserialize<ClaimResponse>(responseContent);
+                   return JsonSerializer.Deserialize<ChainResponse<T>>(responseContent);
                 }
                 else
                 {
@@ -264,7 +265,7 @@ public class MintForest
     }
 
 
-    public async Task<bool> PerformContractSteal(string txData)
+    public async Task<bool> PerformContractAction(string txData)
     {
         try
         {
@@ -283,12 +284,16 @@ public class MintForest
                 Value = new Nethereum.Hex.HexTypes.HexBigInteger(0)
             });
 
-            var checkHash = await web3.Eth.Transactions.GetTransactionReceipt.SendRequestAsync(transactionHash);
-            if (checkHash != null)
+            var receipt = await web3.TransactionManager.TransactionReceiptService.PollForReceiptAsync(transactionHash);
+            if (receipt != null)
             {
-                return checkHash.Status.Value == 0 ? false : true;
+                return receipt.Status.Value == 0 ? false : true;
             }
-            else return false;
+            else    
+            {
+                Console.WriteLine($"Başarısız işlem hash: {receipt}");
+                return false;
+            }
 
         }
         catch (Exception ex)
@@ -298,6 +303,35 @@ public class MintForest
             return false;
         }
 
+    }
+
+    public async Task<bool> SimulateContractAction(string txData)
+    {
+        try
+        {
+            var rpcUrl = "https://rpc.mintchain.io";
+            var account = new Nethereum.Web3.Accounts.Account(_authorization.PrivateKey);
+            var web3 = new Web3(account, rpcUrl);
+            var contractAddress = "0x12906892AaA384ad59F2c431867af6632c68100a";
+
+            var transactionInput = new Nethereum.RPC.Eth.DTOs.TransactionInput
+            {
+                From = account.Address,
+                To = contractAddress,
+                Data = txData,
+                Gas = new Nethereum.Hex.HexTypes.HexBigInteger(100000),
+                GasPrice = new Nethereum.Hex.HexTypes.HexBigInteger(Web3.Convert.ToWei(0.0001, Nethereum.Util.UnitConversion.EthUnit.Gwei)),
+                Value = new Nethereum.Hex.HexTypes.HexBigInteger(0)
+            };
+
+            var result = await web3.Eth.Transactions.Call.SendRequestAsync(transactionInput);
+
+            return !string.IsNullOrEmpty(result);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
 

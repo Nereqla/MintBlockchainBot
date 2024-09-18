@@ -15,8 +15,6 @@ internal class Program
 
         LoadApplicationSettings();
 
-
-        _appSettings.Credentials.RemoveAt(0);
         foreach (var account in _appSettings.Credentials) 
         {
             try

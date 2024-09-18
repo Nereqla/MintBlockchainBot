@@ -1,4 +1,5 @@
 ﻿using MintBlockchainBotConsoleUI.Models;
+using Org.BouncyCastle.Crypto.Generators;
 using System.Net.Http.Headers;
 using System.Text.Json;
 
@@ -83,36 +84,30 @@ internal class DiscordWebHookManager
     }
 
     // Discord Webhook maximum field count 25!
+    private static int DiscordMaxFieldCount = 25;
     private static async Task SendErrorMessageQueue(List<DiscordMessage> errorsQueue)
     {
         var messageContent = new DiscordWebHookMessageContent();
         messageContent.Embeds = new List<Embed>();
-        Embed embed = new Embed();
-        messageContent.Embeds.Add(embed);
-        embed.Title = "KRİTİK BİR HATA OLUŞTU";
-        embed.Description = "Aşağıdaki adı geçen hesaplar hata oluştuğundan dolayı durdurulmuştur!";
-        embed.Color = 16711680; // red
-        embed.Fields = new List<Field>();
+        Embed embed = ErrorEmbedBuilder();
 
         int counter = 0;
 
         for (int i = 0; i < errorsQueue.Count; i++)
         {
-            if (counter > 24)
+            if (counter == DiscordMaxFieldCount)
             {
                 await SendMessage(messageContent);
-                embed = new Embed();
-                embed.Title = "KRİTİK BİR HATA OLUŞTU";
-                embed.Description = "Aşağıdaki adı geçen hesaplar hata oluştuğundan dolayı durdurulmuştur!";
-                embed.Color = 16711680; // red
-                embed.Fields = new List<Field>();
-                counter = 0;
+                embed = ErrorEmbedBuilder();
+
                 await Task.Delay(_sendDelay);
+                counter = 0;
             }
+
             embed.Fields.Add(new Field()
             {
                 Name = errorsQueue[i].AccountName,
-                Value = errorsQueue[i].Messages.First(),
+                Value = ErrorMessagesStringBuilder(errorsQueue[i].Messages),
             });
             counter++;
         }
@@ -120,6 +115,26 @@ internal class DiscordWebHookManager
         {
             await SendMessage(messageContent);
         }
+    }
+
+    private static string ErrorMessagesStringBuilder(List<string> messages)
+    {
+        string oneLineMessage = "";
+        foreach (var message in messages)
+        {
+            oneLineMessage = $"{message}\n";
+        }
+        return oneLineMessage.TrimEnd('\n');
+    }
+
+    private static Embed ErrorEmbedBuilder()
+    {
+        var embed =  new Embed();
+        embed.Title = "KRİTİK BİR HATA OLUŞTU";
+        embed.Description = "Mint Forest Bot";
+        embed.Color = 16711680; // red
+        embed.Fields = new List<Field>();
+        return embed;
     }
 
     private static async Task SendMessage(DiscordWebHookMessageContent msgContent)
