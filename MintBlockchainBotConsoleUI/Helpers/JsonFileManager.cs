@@ -43,7 +43,7 @@ internal class JsonFileManager
 
     static JsonFileManager()
     {
-        RemoveOldFiles();
+        RemoveOldCacheFiles();
     }
 
     private static void CreateCredentialsFile()
@@ -60,6 +60,7 @@ internal class JsonFileManager
         string defaultSettings = JsonSerializer.Serialize(new ApplicationSettings()
         {
             WebHookURL = null,
+            ErrorWebHookURL = null,
             Credentials = new List<Credential>()
             {
                 new Credential()
@@ -153,7 +154,10 @@ internal class JsonFileManager
         }
     }
 
-    public static void RemoveOldFiles()
+    /// <summary>
+    /// Bu günden daha eski tüm kayıtlı leaderboard ve checkedlist dosyalarını siler.
+    /// </summary>
+    public static void RemoveOldCacheFiles()
     {
         string todaysDate = DateTime.Now.ToString("dd_MM_yyyy");
 

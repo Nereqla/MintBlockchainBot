@@ -11,5 +11,6 @@ public class Credential
 public class ApplicationSettings
 {
     public string WebHookURL { get; set; }
+    public string ErrorWebHookURL { get; set; }
     public List<Credential> Credentials { get; set; }
 }

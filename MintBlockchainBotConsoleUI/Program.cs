@@ -33,7 +33,6 @@ internal class Program
             {
                 Console.WriteLine($"{DateTime.Now} - {account.AccountName}: Hesaba giriş başarısız!");
                 Console.WriteLine(ex.Message);
-                //TODO: Send error to discord
             }
         }
 
@@ -45,7 +44,8 @@ internal class Program
         try
         {
             _appSettings = JsonFileManager.ReadCredentials();
-            DiscordWebHookManager.DiscordWebHook = _appSettings.WebHookURL;
+            DiscordWebHookManager.DiscordInformWebHook = _appSettings.WebHookURL;
+            DiscordWebHookManager.DiscordErrorWebHook = _appSettings.ErrorWebHookURL;
             DiscordWebHookManager.DiscordLogic();
         }
         catch (Exception ex)

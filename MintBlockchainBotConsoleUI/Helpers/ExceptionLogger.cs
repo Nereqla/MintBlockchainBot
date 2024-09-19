@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Globalization;
+using System.Text;
 
 namespace MintBlockchainBotConsoleUI.Helpers;
 public static class ExceptionLogger
@@ -32,6 +33,36 @@ public static class ExceptionLogger
         string logFileName = DateTime.Now.ToString("dd-MM-yyyy_HH-mm-ss_") + $"---{RandomNumber()}.txt";
         string logFilePath = Path.Combine(_logDirectoryPath, logFileName);
         File.WriteAllText(logFilePath, log.ToString());
+    }
+
+
+    /// <summary>
+    /// 5 günden eski LOG dosyalarını siler.
+    /// </summary>
+    public static void DeleteOldLogFiles()
+    {
+        try
+        {
+            var files = Directory.GetFiles(_logDirectoryPath);
+
+            foreach (var file in files)
+            {
+                var fileName = Path.GetFileNameWithoutExtension(file);
+                var parts = fileName.Split('_');
+
+                if (parts.Length > 0)
+                {
+                    if (DateTime.TryParseExact(parts[0], "dd-MM-yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime fileDate))
+                    {
+                        if ((DateTime.Today - fileDate).TotalDays > 5)
+                        {
+                            File.Delete(file);
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception) { }
     }
 
     private static Random rnd = new Random();

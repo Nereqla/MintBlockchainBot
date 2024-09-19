@@ -13,7 +13,9 @@ internal class Bot
     private string _accountName;
     private List<StealableUser> _steableUsers;
     private bool _collectDailyOnChain = true;
-    private int _minAmountToCollect;
+    private int _minEnergyAmountToCollect; // değer atama yapma!
+    private int _maxDailyStealLimit = 8;
+    private int _currentStealCount = 0;
 
     public MintForest _mfWrapper { get; set; }
     public Bot(MintForest wrapper, string accountName)
@@ -33,8 +35,10 @@ internal class Bot
         {
             try
             {
-                var stealpoints = StealPointsFromUsersLogic();
+                ExceptionLogger.DeleteOldLogFiles();
+                JsonFileManager.RemoveOldCacheFiles();
 
+                var stealpoints = StealPointsFromUsersLogic();
                 await GetEnergyListAndClaimDaily();
 
                 var userInfo = await GetUserInfoAndInject();
@@ -58,7 +62,7 @@ internal class Bot
                 await stealpoints;
                 await Log("Çalma çırpma işlemi de bitti...");
 
-                JsonFileManager.RemoveOldFiles();
+                
                 await Log($"Sıradaki toplama ertesi gün {DateTime.Now.Add(nextCheck).ToString("HH:mm:ss")} saatinde!");
                 await Task.Delay(nextCheck);
             }
@@ -95,7 +99,7 @@ internal class Bot
 
         var dailySignTX = await _mfWrapper.GetTransactionData<DailyLoginResult>(TransactionType.Signin, 0);
 
-        if (!CheckTxDataCorrect(dailySignTX.Result.Tx))
+        if (!CheckTxDataFormat(dailySignTX.Result.Tx))
         {
             await Log("Günlük toplanırken bir hata oluştu, TxData isteği başarısız. ClaimDailyOnChain()");
             InformDiscord(new List<string>()
@@ -165,7 +169,6 @@ internal class Bot
             if (daily is null)
             {
                 await Log("Günlük bulunamadı WTF #1!!??");
-
             }
             else if (daily.Freeze)
             {
@@ -229,8 +232,7 @@ internal class Bot
 
         return userInfo;
     }
-
-    private int CurrentStealCount = 0;
+    
     private async Task StealPointsFromUsersLogic()
     {
         var userInfo = await _mfWrapper.GetUserInfo();
@@ -239,19 +241,19 @@ internal class Bot
             throw new Exception("userInfo null olamaz!");
         }
 
-        CurrentStealCount = userInfo.Result.StealCount;
-        if (CurrentStealCount >= 8)
+        _currentStealCount = userInfo.Result.StealCount;
+        if (_currentStealCount >= _maxDailyStealLimit)
         {
             Log("Hesap tüm araklama işlemlerini bitirmiş.");
             return;
         }
 
-        DateTime leaderBoardCheckTime = DateTime.Today.AddHours(14).AddMinutes(30).AddSeconds(1); // 14:30
-        DateTime stealTime = DateTime.Today.AddHours(15).AddSeconds(1); // 15:00
+        DateTime leaderBoardCheckTime = DateTime.UtcNow.Date.AddHours(11).AddMinutes(30).AddSeconds(1); // 14:30
+        DateTime stealTime = DateTime.UtcNow.Date.AddHours(12).AddSeconds(1); // 15:00
 
-        if (DateTime.Now < leaderBoardCheckTime)
+        if (DateTime.UtcNow < leaderBoardCheckTime)
         {
-            TimeSpan delay = leaderBoardCheckTime - DateTime.Now;
+            TimeSpan delay = leaderBoardCheckTime - DateTime.UtcNow;
             Log($"Saat 14:30'a kadar bekleniyor: {delay}");
             await Task.Delay(delay);
             Log("Vakit geldi! Hadi henüz günlüklerini toplamamış oyuncuları bulalım.");
@@ -271,9 +273,9 @@ internal class Bot
 
         Log($"Henüz günlüğünü toplamamış {usersNotClaimedDaily.Count} kullanıcı bulundu.");
 
-        if (DateTime.Now < stealTime)
+        if (DateTime.UtcNow < stealTime)
         {
-            TimeSpan delay = stealTime - DateTime.Now;
+            TimeSpan delay = stealTime - DateTime.UtcNow;
             Log($"Çalmak çırpmak için Saat 15:00'a kadar bekleniyor: {delay}");
             await Task.Delay(delay);
             Log("Çalma çırpma vakti geldi, haydi kolay gele!");
@@ -282,19 +284,33 @@ internal class Bot
 
         List<StealableUser> stealableUsers = JsonFileManager.LoadStealableUsersIfExists(_accountName);
 
-        _minAmountToCollect = 2000;
+        _minEnergyAmountToCollect = 2000;
         if (stealableUsers is null) await ScanUsersAmount(usersNotClaimedDaily);
 
-        if (CurrentStealCount < 8)
+        if (_currentStealCount < _maxDailyStealLimit)
         {
-            Log($"Sıralama tablosundaki tüm kullanıcılar bitti ama hala yeterince toplayamadık. Üzgünüm. StealCount: {CurrentStealCount}");
+            Log($"Sıralama tablosundaki tüm kullanıcılar bitti ama hala yeterince toplayamadık. Üzgünüm. Çalma Hakkı: {_currentStealCount}/{_maxDailyStealLimit}");
             InformDiscord(new List<string>()
             {
-                $"Sıralama tablosundaki tüm kullanıcılar bitti ama hala yeterince toplayamadık. StealCount: {CurrentStealCount}",
+                $"Sıralama tablosundaki tüm kullanıcılar bitti ama hala yeterince toplayamadık. StealCount: {_currentStealCount}/{_maxDailyStealLimit}",
+                $"BruteForce denenecek!",
             });
 
-            Log("BruteForce deneniyor. 1'den 10bine!");
+            Log("BruteForce zamanı! 1'den 10bine!");
             await TimeToBruteForce();
+
+            if (_currentStealCount < _maxDailyStealLimit)
+            {
+                InformDiscord(new List<string>()
+                {
+                    $"Brute Force Bitti. Günlük çalma miktarını yine tamamlayamadık! HOW THE FUCK?",
+                    $"StealCount: {_currentStealCount}/{_maxDailyStealLimit}"
+                },true);
+            }
+            else InformDiscord(new List<string>()
+                {
+                    $"Brute Force Bitti. Başarıyla günlüğü tamamladık! StealCount: {_currentStealCount}/{_maxDailyStealLimit}",
+                });
         }
         else
         {
@@ -310,7 +326,7 @@ internal class Bot
         int maxRetries = 10;
         int counter = 1;
 
-        while (counter++ <= maxRetries && CurrentStealCount < 8)
+        while (counter++ <= maxRetries && _currentStealCount < 8)
         {
             ChainResponse<StealResult> stealResponse;
             try
@@ -327,12 +343,12 @@ internal class Bot
             }
             if (stealResponse.Msg is null) break;
 
-            if (stealResponse.Result is not null && CheckTxDataCorrect(stealResponse.Result.Tx) && stealResponse.Msg.Contains("ok"))
+            if (stealResponse.Result is not null && CheckTxDataFormat(stealResponse.Result.Tx) && stealResponse.Msg.Contains("ok"))
             {
-                if (stealResponse.Result.Collected > CurrentStealCount)
+                if (stealResponse.Result.Collected > _currentStealCount)
                 {
-                    Log($"Ramdeki StealCount, endpointten dönen ile eşitlendi. {CurrentStealCount} => {stealResponse.Result.Collected}");
-                    CurrentStealCount = stealResponse.Result.Collected;
+                    Log($"Ramdeki StealCount, endpointten dönen ile eşitlendi. {_currentStealCount} => {stealResponse.Result.Collected}");
+                    _currentStealCount = stealResponse.Result.Collected;
                     continue;
                 }
 
@@ -341,8 +357,8 @@ internal class Bot
                     var isSuccess = await _mfWrapper.PerformContractAction(stealResponse.Result.Tx);
                     if (isSuccess)
                     {
-                        CurrentStealCount++;
-                        Log($"User ID: {user.UserId} - Tree ID: {user.TreeId} - Amount: {user.Amount} | Başarıyla toplandı! - Kalan Hak: {CurrentStealCount}/8");
+                        _currentStealCount++;
+                        Log($"User ID: {user.UserId} - Tree ID: {user.TreeId} - Amount: {user.Amount} | Başarıyla toplandı! - Kalan Hak: {_currentStealCount}/8");
                         break;
                     }
                     else
@@ -354,7 +370,7 @@ internal class Bot
                 }
                 else
                 {
-                    await Log($"Simule edilen işlem hata döndü! - Kalan çalma hakkı: {CurrentStealCount}/8");
+                    await Log($"Simule edilen işlem hata döndü! - Kalan çalma hakkı: {_currentStealCount}/{_maxDailyStealLimit}");
                     counter += 4;
                     await Task.Delay(1500);
                     continue;
@@ -364,7 +380,7 @@ internal class Bot
             if (stealResponse.Msg.Contains("8 times per day."))
             {
                 Log("8 times per day. Hakkın bitmiş!");
-                CurrentStealCount = 8;
+                _currentStealCount = 8;
                 break;
             }
             else if (stealResponse.Msg.Contains("Frequent operations"))
@@ -415,7 +431,7 @@ internal class Bot
         {
             bool tryAgain = false;
 
-            if (CurrentStealCount >= 8)
+            if (_currentStealCount >= _maxDailyStealLimit)
             {
                 await Log("Toplama hakkı bittiğinden tarama sonlandırılıyor... ScanUsersAmount()");
                 break;
@@ -430,9 +446,9 @@ internal class Bot
                     {
                         int amount = checkenergyList.Result.First().Amount;
                         await Log($"UserID: {notClaimedUser.UserId} | Energy: {amount}");
-                        if (amount >= _minAmountToCollect && collectIfAmmountHigher && CurrentStealCount < 8)
+                        if (amount >= _minEnergyAmountToCollect && collectIfAmmountHigher && _currentStealCount < 8)
                         {
-                            Log($"Wow! {_minAmountToCollect} üstü puan bulundu! => Miktar: {amount}");
+                            Log($"Wow! {_minEnergyAmountToCollect} üstü puan bulundu! => Miktar: {amount}");
                             await StealME(new StealableUser()
                             {
                                 Amount = amount,
@@ -442,7 +458,6 @@ internal class Bot
                             break;
                         }
                     }
-                    else Log($"UserID:{notClaimedUser.UserId}");
                     counter++;
                     await Task.Delay(250);
                     tryAgain = false;
@@ -475,7 +490,7 @@ internal class Bot
     private async Task TimeToBruteForce()
     {
         List<NotClaimedUsers> randoms = new List<NotClaimedUsers>();
-        _minAmountToCollect = 1000;
+        _minEnergyAmountToCollect = 1000;
         for (int i = 1; i < 10000; i++)
         {
             randoms.Add(new NotClaimedUsers()
@@ -505,7 +520,7 @@ internal class Bot
                     {
                         var userActivities = await _mfWrapper.GetActivity(user.TreeId);
                         var usersActivity = userActivities.Activities.FirstOrDefault(x => x.Type.Contains("daily"));
-                        if (usersActivity is null || usersActivity.ClaimAt < DateTime.Today)
+                        if (usersActivity is null || usersActivity.ClaimAt < DateTime.UtcNow.Date)
                         {
                             tempUsersNotClaimedDaily.Add(new NotClaimedUsers()
                             {
@@ -571,7 +586,7 @@ internal class Bot
         return hexPattern.IsMatch(input.Trim(['0', 'x']));
     }
 
-    private bool CheckTxDataCorrect(string data)
+    private bool CheckTxDataFormat(string data)
     {
         if (String.IsNullOrEmpty(data)) return false;
 

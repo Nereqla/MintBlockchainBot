@@ -1,5 +1,4 @@
 ﻿using MintBlockchainBotConsoleUI.Models;
-using Org.BouncyCastle.Crypto.Generators;
 using System.Net.Http.Headers;
 using System.Text.Json;
 
@@ -8,24 +7,49 @@ internal class DiscordWebHookManager
 {
     public static bool State = false;
 
-    private static string _discordWebHook;
+    private static string _discordInformWebHook;
+    private static string _discordErrorWebHook;
     private static TimeSpan _sendDelay = TimeSpan.FromSeconds(5);
 
     private static HttpClient _client = new HttpClient();
-    public static string DiscordWebHook
+    public static string DiscordInformWebHook
     {
-        get => _discordWebHook;
+        get => _discordInformWebHook;
 
         set
         {
             if (!String.IsNullOrEmpty(value))
             {
-                _discordWebHook = value;
+                _discordInformWebHook = value;
                 State = true;
             }
             else
             {
-                _discordWebHook = value;
+                _discordInformWebHook = value;
+                State = false;
+            }
+
+        }
+    }
+
+    public static string DiscordErrorWebHook
+    {
+        get
+        {
+            if (String.IsNullOrEmpty(_discordErrorWebHook)) return _discordInformWebHook;
+            else return _discordErrorWebHook;
+        }
+
+        set
+        {
+            if (!String.IsNullOrEmpty(value))
+            {
+                _discordErrorWebHook = value;
+                State = true;
+            }
+            else
+            {
+                _discordErrorWebHook = value;
                 State = false;
             }
 
@@ -38,6 +62,7 @@ internal class DiscordWebHookManager
     {
         while (true)
         {
+            await Task.Delay(TimeSpan.FromSeconds(5));
             if (State)
             {
                 List<DiscordMessage> errorqueue = new List<DiscordMessage>();
@@ -56,7 +81,7 @@ internal class DiscordWebHookManager
                 if (errorqueue.Count > 0)
                     await SendErrorMessageQueue(errorqueue);
             }
-            await Task.Delay(TimeSpan.FromSeconds(10));
+            await Task.Delay(TimeSpan.FromSeconds(20));
         }
     }
 
@@ -97,7 +122,11 @@ internal class DiscordWebHookManager
         {
             if (counter == DiscordMaxFieldCount)
             {
-                await SendMessage(messageContent);
+                messageContent.Embeds.Add(embed);
+                await SendMessage(messageContent,true);
+
+                messageContent = new DiscordWebHookMessageContent();
+                messageContent.Embeds = new List<Embed>();
                 embed = ErrorEmbedBuilder();
 
                 await Task.Delay(_sendDelay);
@@ -111,9 +140,11 @@ internal class DiscordWebHookManager
             });
             counter++;
         }
+
+        messageContent.Embeds.Add(embed);
         if (messageContent.Embeds.Count > 0)
         {
-            await SendMessage(messageContent);
+            await SendMessage(messageContent, true);
         }
     }
 
@@ -122,7 +153,7 @@ internal class DiscordWebHookManager
         string oneLineMessage = "";
         foreach (var message in messages)
         {
-            oneLineMessage = $"{message}\n";
+            oneLineMessage += $"{message}\n";
         }
         return oneLineMessage.TrimEnd('\n');
     }
@@ -137,14 +168,18 @@ internal class DiscordWebHookManager
         return embed;
     }
 
-    private static async Task SendMessage(DiscordWebHookMessageContent msgContent)
+    private static async Task SendMessage(DiscordWebHookMessageContent msgContent, bool isErrorMessage = false)
     {
+        string tempWebHook;
+        if (isErrorMessage) tempWebHook = DiscordErrorWebHook;
+        else tempWebHook = DiscordInformWebHook;
+
         try
         {
             using (var content = new StringContent(JsonSerializer.Serialize(msgContent)))
             {
                 content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
-                using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, _discordWebHook))
+                using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, tempWebHook))
                 {
                     request.Content = content;
                     var response = await _client.SendAsync(request);

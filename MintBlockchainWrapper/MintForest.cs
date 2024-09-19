@@ -291,7 +291,7 @@ public class MintForest
             }
             else    
             {
-                Console.WriteLine($"Başarısız işlem hash: {receipt}");
+                Console.WriteLine($"## Başarısız işlem hash: {receipt}");
                 return false;
             }
 
@@ -335,6 +335,6 @@ public class MintForest
     }
 
 
-    public TimeSpan GetNextDailyTime() => (DateTime.Today.AddDays(1).Date - DateTime.UtcNow);
+    public TimeSpan GetNextDailyTime() => (DateTime.UtcNow.Date.AddDays(1).Date - DateTime.UtcNow);
 }
 
