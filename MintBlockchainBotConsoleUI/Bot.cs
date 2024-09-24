@@ -13,9 +13,10 @@ internal class Bot
     private string _accountName;
     private List<StealableUser> _steableUsers;
     private bool _collectDailyOnChain = true;
-    private int _minEnergyAmountToCollect; // değer atama yapma!
+    private int _minEnergyAmountToCollect = 5000;
     private int _maxDailyStealLimit = 8;
     private int _currentStealCount = 0;
+    private Random _rnd = new Random();
 
     public MintForest _mfWrapper { get; set; }
     public Bot(MintForest wrapper, string accountName)
@@ -27,7 +28,6 @@ internal class Bot
         _steableUsers = new List<StealableUser>();
     }
 
-    private Random _rnd = new Random();
     public async Task Start()
     {
         bool tryReLoginOnce = true;
@@ -260,7 +260,7 @@ internal class Bot
         }
         else Log("Saat 14:30'u geçmiş. Sıralamadaki oyuncular kontrol ediliyor.");
 
-        List<NotClaimedUsers> usersNotClaimedDaily = JsonFileManager.LoadNotClaimedLeaderboardUsersIfExists(_accountName);
+        List<RandomUser> usersNotClaimedDaily = JsonFileManager.LoadNotClaimedLeaderboardUsersIfExists(_accountName);
 
         if (usersNotClaimedDaily is null)
         {
@@ -282,10 +282,7 @@ internal class Bot
         }
         else Log("Çalma çırpma saati geçmiş bile! Elimizi çabuk tutalım!");
 
-        List<StealableUser> stealableUsers = JsonFileManager.LoadStealableUsersIfExists(_accountName);
-
-        _minEnergyAmountToCollect = 2000;
-        if (stealableUsers is null) await ScanUsersAmount(usersNotClaimedDaily);
+        await ScanUsersAmount(usersNotClaimedDaily);
 
         if (_currentStealCount < _maxDailyStealLimit)
         {
@@ -420,92 +417,94 @@ internal class Bot
         await Task.Delay(TimeSpan.FromSeconds(12));
     }
 
-    private async Task ScanUsersAmount(List<NotClaimedUsers> usersNotClaimedDaily)
+    private async Task TryStealFromUser(RandomUser user)
     {
         int retry = 0;
         int counter = 1;
         int maxRetryInARow = 15;
-        bool collectIfAmmountHigher = true;
+        bool tryAgain = false;
 
+        if (user is null) return;
+
+        do
+        {
+            try
+            {
+                var checkenergyList = await _mfWrapper.GetStealEnergyList(user.UserId);
+                if (checkenergyList.Result is not null && checkenergyList.Result.Count > 0)
+                {
+                    int amount = checkenergyList.Result.First().Amount;
+                    await Log($"UserID: {user.UserId} | Energy: {amount}");
+                    if (amount >= _minEnergyAmountToCollect && _currentStealCount < 8)
+                    {
+                        Log($"Wow! {_minEnergyAmountToCollect} üstü puan bulundu! => Miktar: {amount}");
+                        await StealME(new StealableUser()
+                        {
+                            Amount = amount,
+                            TreeId = user.TreeId,
+                            UserId = user.UserId,
+                        });
+                        break;
+                    }
+                }
+                counter++;
+                await Task.Delay(250);
+                tryAgain = false;
+                retry = 0;
+            }
+            catch (Exception ex)
+            {
+                ExceptionLogger.Log(ex);
+                if (retry <= maxRetryInARow)
+                {
+                    var dflkgjdfg = ex;
+                    tryAgain = true;
+                    retry++;
+                    Log($"!deneme sayısı: {retry} ");
+                    Log($"[TryStealFromUser] - HATA! - Hata Mesajı: {ex.Message}");
+                    await Task.Delay(TimeSpan.FromSeconds(8));
+                }
+                else
+                {
+                    Log($"[Eyvah!] - (TryStealFromUser) isimli method tek seferde {maxRetryInARow} hata sayısını aştı.");
+                    tryAgain = false;
+                    return;
+                }
+            }
+        } while (tryAgain);
+    }
+
+    private async Task ScanUsersAmount(List<RandomUser> usersNotClaimedDaily)
+    {
         foreach (var notClaimedUser in usersNotClaimedDaily)
         {
-            bool tryAgain = false;
-
             if (_currentStealCount >= _maxDailyStealLimit)
             {
                 await Log("Toplama hakkı bittiğinden tarama sonlandırılıyor... ScanUsersAmount()");
                 break;
             }
 
-            do
-            {
-                try
-                {
-                    var checkenergyList = await _mfWrapper.GetStealEnergyList(notClaimedUser.UserId);
-                    if (checkenergyList.Result is not null && checkenergyList.Result.Count > 0)
-                    {
-                        int amount = checkenergyList.Result.First().Amount;
-                        await Log($"UserID: {notClaimedUser.UserId} | Energy: {amount}");
-                        if (amount >= _minEnergyAmountToCollect && collectIfAmmountHigher && _currentStealCount < 8)
-                        {
-                            Log($"Wow! {_minEnergyAmountToCollect} üstü puan bulundu! => Miktar: {amount}");
-                            await StealME(new StealableUser()
-                            {
-                                Amount = amount,
-                                TreeId = notClaimedUser.TreeId,
-                                UserId = notClaimedUser.UserId,
-                            });
-                            break;
-                        }
-                    }
-                    counter++;
-                    await Task.Delay(250);
-                    tryAgain = false;
-                    retry = 0;
-                }
-                catch (Exception ex)
-                {
-                    ExceptionLogger.Log(ex);
-                    if (retry <= maxRetryInARow)
-                    {
-                        var dflkgjdfg = ex;
-                        tryAgain = true;
-                        retry++;
-                        Log($"!deneme sayısı: {retry} ");
-                        Log($"[ScanUsersAmount] - HATA! - Hata Mesajı: {ex.Message}");
-                        await Task.Delay(TimeSpan.FromSeconds(8));
-                    }
-                    else
-                    {
-                        Log($"[Eyvah!] - (SearchAmountInUsers) isimli method tek seferde {maxRetryInARow} hata sayısını aştı.");
-                        tryAgain = false;
-                        return;
-                    }
-                }
-            } while (tryAgain);
-
+            await TryStealFromUser(notClaimedUser);
         }
     }
 
     private async Task TimeToBruteForce()
     {
-        List<NotClaimedUsers> randoms = new List<NotClaimedUsers>();
-        _minEnergyAmountToCollect = 1000;
-        for (int i = 1; i < 10000; i++)
+        while (GlobalQueue.RandomUsers.TryDequeue(out RandomUser user))
         {
-            randoms.Add(new NotClaimedUsers()
+            if (_currentStealCount >= _maxDailyStealLimit)
             {
-                UserId = i,
-                TreeId = 0,
-            });
+                await Log("Toplama hakkı bittiğinden BruteForce sonlandırılıyor... TimeToBruteForce()");
+                break;
+            }
+
+            await TryStealFromUser(user);
         }
-        randoms.Shuffle();
-        await ScanUsersAmount(randoms);
     }
 
-    private async Task<List<NotClaimedUsers>> FindUsersNotClaimedDaily()
+    private async Task<List<RandomUser>> FindUsersNotClaimedDaily()
     {
-        List<NotClaimedUsers> tempUsersNotClaimedDaily = new List<NotClaimedUsers>();
+        List<Models.RandomUser> tempUsersNotClaimedDaily = new List<Models.RandomUser>();
         int pageCounter = 1;
         while (pageCounter <= 20)
         {
@@ -522,7 +521,7 @@ internal class Bot
                         var usersActivity = userActivities.Activities.FirstOrDefault(x => x.Type.Contains("daily"));
                         if (usersActivity is null || usersActivity.ClaimAt < DateTime.UtcNow.Date)
                         {
-                            tempUsersNotClaimedDaily.Add(new NotClaimedUsers()
+                            tempUsersNotClaimedDaily.Add(new Models.RandomUser()
                             {
                                 TreeId = user.TreeId,
                                 UserId = user.Id

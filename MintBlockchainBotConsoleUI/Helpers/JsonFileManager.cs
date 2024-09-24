@@ -100,12 +100,12 @@ internal class JsonFileManager
     private static string _todaysLeaderboardListFileName => DateTime.Now.ToString("dd_MM_yyyy") + "_leaderboard";
     private static string _todaysStealableListFileName => DateTime.Now.ToString("dd_MM_yyyy") + "_checkedlist";
 
-    public static List<NotClaimedUsers>? LoadNotClaimedLeaderboardUsersIfExists(string accountName)
+    public static List<RandomUser>? LoadNotClaimedLeaderboardUsersIfExists(string accountName)
     {
         var name = _todaysLeaderboardListFileName + $"_{accountName}.json";
         if (File.Exists(name))
         {
-            return JsonSerializer.Deserialize<List<NotClaimedUsers>>(File.ReadAllText(name));
+            return JsonSerializer.Deserialize<List<RandomUser>>(File.ReadAllText(name));
         }
         else
         {
@@ -126,7 +126,7 @@ internal class JsonFileManager
         }
     }
 
-    public static void SaveNotClaimedLeaderboardUsersToFile(List<NotClaimedUsers> leaderboardDailyList, string accountName)
+    public static void SaveNotClaimedLeaderboardUsersToFile(List<RandomUser> leaderboardDailyList, string accountName)
     {
         var name = _todaysLeaderboardListFileName + $"_{accountName}.json";
         try
