@@ -1,7 +1,6 @@
 ﻿using MintBlockchainBot;
 using MintBlockchainBotConsoleUI.Helpers;
 using MintBlockchainBotConsoleUI.Models;
-using MintBlockChainBotConsoleUI.Helpers;
 using MintBlockchainWrapper;
 using MintBlockchainWrapper.Models;
 using System.Net;
@@ -13,19 +12,21 @@ internal class Bot
     private string _accountName;
     private List<StealableUser> _steableUsers;
     private bool _collectDailyOnChain = true;
-    private int _minEnergyAmountToCollect = 5000;
+    private bool _tryBruteForceForSteal = false;
+    private int _minEnergyAmountToCollect = 25000;
     private int _maxDailyStealLimit = 8;
     private int _currentStealCount = 0;
     private Random _rnd = new Random();
-
+    private bool _runStealLogicOnThisAccount;
+    private bool _stealLoopStatus;
     public MintForest _mfWrapper { get; set; }
-    public Bot(MintForest wrapper, string accountName)
+    public Bot(MintForest wrapper, string accountName, bool stealPointsOnThisAccount, bool collectDailyOnChain)
     {
         _mfWrapper = wrapper;
         _accountName = accountName;
-
-
+        _runStealLogicOnThisAccount = stealPointsOnThisAccount;
         _steableUsers = new List<StealableUser>();
+        _collectDailyOnChain = collectDailyOnChain;
     }
 
     public async Task Start()
@@ -36,15 +37,15 @@ internal class Bot
             try
             {
                 ExceptionLogger.DeleteOldLogFiles();
-                JsonFileManager.RemoveOldCacheFiles();
-
+                GlobalQueue.LoadAll();
+                
                 var stealpoints = StealPointsFromUsersLogic();
                 await GetEnergyListAndClaimDaily();
 
                 var userInfo = await GetUserInfoAndInject();
 
                 var nextCheck = _mfWrapper.GetNextDailyTime().
-                    Add(TimeSpan.FromHours(_rnd.Next(3, 8))).
+                    Add(TimeSpan.FromHours(_rnd.Next(1, 4))).
                     Add(TimeSpan.FromMinutes(_rnd.Next(5, 45)));
 
 
@@ -181,6 +182,8 @@ internal class Bot
             }
         }
 
+        // TODO: DÜZENLENECEK
+        return getEnergyResponse;
         foreach (var collectable in collectables)
         {
             if (!collectable.Freeze)
@@ -217,18 +220,19 @@ internal class Bot
         }
 
         await Task.Delay(_rnd.Next(500, 2500));
-        if (userInfo.Result.Energy > 0)
+        if (userInfo.Result.Energy > 1100)
         {
-            var injectMeResponse = await _mfWrapper.InjectMe(userInfo.Result.Energy);
+            int injectAmmount = userInfo.Result.Energy - 1000;
+            var injectMeResponse = await _mfWrapper.InjectMe(injectAmmount);
             if (injectMeResponse is not null && injectMeResponse.Msg.Contains("ok"))
-                Log($"{userInfo.Result.Energy} ME puanının tamamı aşılandı!");
+                Log($"{injectAmmount} ME puanı aşılandı!");
             else
             {
                 await Log($"(injectMeResponse) Kritik hata: {injectMeResponse.Msg}");
                 throw new Exception(injectMeResponse.Msg);
             }
         }
-        else Log("Aşılanacak hiç ME yok!");
+        else Log("Aşılamaya değecek ME yok!");
 
         return userInfo;
     }
@@ -248,30 +252,24 @@ internal class Bot
             return;
         }
 
-        DateTime leaderBoardCheckTime = DateTime.UtcNow.Date.AddHours(11).AddMinutes(30).AddSeconds(1); // 14:30
+        DateTime leaderBoardCheckTime = DateTime.UtcNow.Date.AddHours(11).AddMinutes(53).AddSeconds(1); // 14:53
         DateTime stealTime = DateTime.UtcNow.Date.AddHours(12).AddSeconds(1); // 15:00
 
         if (DateTime.UtcNow < leaderBoardCheckTime)
         {
             TimeSpan delay = leaderBoardCheckTime - DateTime.UtcNow;
-            Log($"Saat 14:30'a kadar bekleniyor: {delay}");
+            Log($"Saat 14:45'e kadar bekleniyor: {delay}");
             await Task.Delay(delay);
             Log("Vakit geldi! Hadi henüz günlüklerini toplamamış oyuncuları bulalım.");
         }
-        else Log("Saat 14:30'u geçmiş. Sıralamadaki oyuncular kontrol ediliyor.");
+        else Log("Saat 14:45'u geçmiş. Sıralamadaki oyuncular kontrol ediliyor.");
 
-        List<RandomUser> usersNotClaimedDaily = JsonFileManager.LoadNotClaimedLeaderboardUsersIfExists(_accountName);
+        GlobalQueue.LoadLeaderBoardUsers();
+        await ScanLeaderboardUsersAndSave();
+        Log($"Ledearboard'da {GlobalQueue.LeaderboardUsers.Count} kişi var.");
+        await FindUsersUnclaimedDaily();
 
-        if (usersNotClaimedDaily is null)
-        {
-            Log("Kayıtlı leaderboard listeli bulunamadı, kontrol edilecek.");
-            usersNotClaimedDaily = await FindUsersNotClaimedDaily();
-            JsonFileManager.SaveNotClaimedLeaderboardUsersToFile(usersNotClaimedDaily, _accountName);
-            Log("Kayıt başarılı.");
-        }
-        else Log("Kayıtlı liste içeri aktarıldı!");
-
-        Log($"Henüz günlüğünü toplamamış {usersNotClaimedDaily.Count} kullanıcı bulundu.");
+        Log($"Henüz günlüğünü toplamamış {GlobalQueue.UsersUnclaimedDaily.Count} kullanıcı bulundu.");
 
         if (DateTime.UtcNow < stealTime)
         {
@@ -282,32 +280,47 @@ internal class Bot
         }
         else Log("Çalma çırpma saati geçmiş bile! Elimizi çabuk tutalım!");
 
-        await ScanUsersAmount(usersNotClaimedDaily);
 
+        _stealLoopStatus = true;
+        var stealLoop = TrySteal();
+
+        await ScanUsersAmount();
+
+        if (!_runStealLogicOnThisAccount)
+        {
+            await Log("Bu hesapta çalma işlemleri kapalı, sadece tarama yapıldı.");
+            return;
+        }
+
+        _stealLoopStatus = false;
+        await stealLoop;
         if (_currentStealCount < _maxDailyStealLimit)
         {
             Log($"Sıralama tablosundaki tüm kullanıcılar bitti ama hala yeterince toplayamadık. Üzgünüm. Çalma Hakkı: {_currentStealCount}/{_maxDailyStealLimit}");
             InformDiscord(new List<string>()
             {
                 $"Sıralama tablosundaki tüm kullanıcılar bitti ama hala yeterince toplayamadık. StealCount: {_currentStealCount}/{_maxDailyStealLimit}",
-                $"BruteForce denenecek!",
             });
 
-            Log("BruteForce zamanı! 1'den 10bine!");
-            await TimeToBruteForce();
-
-            if (_currentStealCount < _maxDailyStealLimit)
+            if (_tryBruteForceForSteal)
             {
-                InformDiscord(new List<string>()
+                Log("BruteForce zamanı! 1'den 10bine!");
+                await TimeToBruteForce();
+
+                if (_currentStealCount < _maxDailyStealLimit)
+                {
+                    InformDiscord(new List<string>()
                 {
                     $"Brute Force Bitti. Günlük çalma miktarını yine tamamlayamadık! HOW THE FUCK?",
                     $"StealCount: {_currentStealCount}/{_maxDailyStealLimit}"
-                },true);
-            }
-            else InformDiscord(new List<string>()
+                }, true);
+                }
+                else InformDiscord(new List<string>()
                 {
                     $"Brute Force Bitti. Başarıyla günlüğü tamamladık! StealCount: {_currentStealCount}/{_maxDailyStealLimit}",
                 });
+            }
+            else await Log("Bruteforce denemesi kapalı olduğu için başlatılmadı.");
         }
         else
         {
@@ -316,11 +329,13 @@ internal class Bot
                 $"Başarıyla 8'de 8 çalma işlemi yapıldı.",
             });
         }
+
+        GlobalQueue.StealingIsCompletedOnAccountsBarrier.SignalAndWait();
     }
 
     private async Task StealME(StealableUser user)
     {
-        int maxRetries = 10;
+        int maxRetries = 4;
         int counter = 1;
 
         while (counter++ <= maxRetries && _currentStealCount < 8)
@@ -346,7 +361,7 @@ internal class Bot
                 {
                     Log($"Ramdeki StealCount, endpointten dönen ile eşitlendi. {_currentStealCount} => {stealResponse.Result.Collected}");
                     _currentStealCount = stealResponse.Result.Collected;
-                    continue;
+                    if (_currentStealCount >= 8) break;
                 }
 
                 if (await _mfWrapper.SimulateContractAction(stealResponse.Result.Tx))
@@ -367,10 +382,8 @@ internal class Bot
                 }
                 else
                 {
-                    await Log($"Simule edilen işlem hata döndü! - Kalan çalma hakkı: {_currentStealCount}/{_maxDailyStealLimit}");
-                    counter += 4;
-                    await Task.Delay(1500);
-                    continue;
+                    await Log($"Simule edilen işlem hata döndü! - | UserId: {user.UserId} - Tree ID: {user.TreeId} - Amount: {user.Amount} | Bu kaçtı!");
+                    break;
                 }
             }
 
@@ -382,28 +395,29 @@ internal class Bot
             }
             else if (stealResponse.Msg.Contains("Frequent operations"))
             {
-                //try again after delay
-                Log("Frequent operations. Tekrar denenecek!");
-                await Task.Delay(TimeSpan.FromSeconds(15));
+                Log("Frequent operations. 5sn sonra Tekrar denenecek!");
+                await Task.Delay(TimeSpan.FromSeconds(5));
                 continue;
             }
             else if (stealResponse.Msg.Contains("collected by someone else"))
             {
-                Log("Bunu çoktan kapmışlar!");
+                Log($"Bunu çoktan kapmışlar! | UserId: {user.UserId} - Tree ID: {user.TreeId} - Amount: {user.Amount} | Bu kaçtı!");
                 break;
             }
             else if (stealResponse.Msg.Contains("Invalid User"))
             {
-                Log($"Bu kullanıcı bulunamadı! || User ID: {user.UserId} - Tree ID: {user.TreeId} - Amount: {user.Amount} | Bu kaçtı!");
-                await Task.Delay(TimeSpan.FromSeconds(3));
-
+                Log($"Bu kullanıcı bulunamadı! || UserID: {user.UserId} - TreeID: {user.TreeId} - Amount: {user.Amount} | Bu kaçtı!");
                 break;
             }
             else if (stealResponse.Msg.Contains("Temporarily unavailable"))
             {
-                Log("Temporarily unavailable");
-                await Task.Delay(TimeSpan.FromSeconds(8));
-                continue;
+                Log($"Temporarily unavailable | UserId: {user.UserId} - Tree ID: {user.TreeId} - Amount: {user.Amount} | Bu kaçtı!");
+                break;
+            }
+            else if (stealResponse.Msg.Contains("currently collecting this energy"))
+            {
+                await Log($"Bu enerjiyi başkası çaldı. || UserID: {user.UserId} - TreeID: {user.TreeId} - Amount: {user.Amount} | Bu kaçtı!");
+                break;
             }
             else
             {
@@ -413,11 +427,28 @@ internal class Bot
                 break;
             }
         }
-        if (counter > maxRetries) Log($"FindUsersNotClaimedDaily() Methodu genel tekrar sayısını aştı. ({maxRetries}) | Kaçırılan Amount: {user.Amount}");
-        await Task.Delay(TimeSpan.FromSeconds(12));
+        if (counter > maxRetries) Log($"StealME() Methodu genel tekrar sayısını aştı. ({maxRetries}) | Kaçırılan Amount: {user.Amount}");
     }
 
-    private async Task TryStealFromUser(RandomUser user)
+    private async Task TrySteal()
+    {
+        if (!_runStealLogicOnThisAccount) return;
+
+        do
+        {
+            GlobalQueue.StealableUsers.OrderByDescending(x => x.Amount);
+            if (GlobalQueue.StealableUsers.TryDequeue(out StealableUser user))
+            {
+                await Log($"Çalma denemesi başlatılıyor: UserID:{user.UserId} - {user.TreeId} | Points: {user.Amount}");
+                await StealME(user);
+                await Task.Delay(TimeSpan.FromMilliseconds(250));
+                continue;
+            }
+            await Task.Delay(TimeSpan.FromMilliseconds(250));
+        } while (_stealLoopStatus || GlobalQueue.StealableUsers.Count > 0);
+    }
+
+    private async Task CheckAndQueueIfScoreSufficient(RandomUser user)
     {
         int retry = 0;
         int counter = 1;
@@ -438,7 +469,7 @@ internal class Bot
                     if (amount >= _minEnergyAmountToCollect && _currentStealCount < 8)
                     {
                         Log($"Wow! {_minEnergyAmountToCollect} üstü puan bulundu! => Miktar: {amount}");
-                        await StealME(new StealableUser()
+                        GlobalQueue.StealableUsers.Enqueue(new StealableUser()
                         {
                             Amount = amount,
                             TreeId = user.TreeId,
@@ -474,17 +505,16 @@ internal class Bot
         } while (tryAgain);
     }
 
-    private async Task ScanUsersAmount(List<RandomUser> usersNotClaimedDaily)
+    private async Task ScanUsersAmount()
     {
-        foreach (var notClaimedUser in usersNotClaimedDaily)
+        while(GlobalQueue.UsersUnclaimedDaily.TryDequeue(out RandomUser userUnclaimedDaily))
         {
             if (_currentStealCount >= _maxDailyStealLimit)
             {
                 await Log("Toplama hakkı bittiğinden tarama sonlandırılıyor... ScanUsersAmount()");
                 break;
             }
-
-            await TryStealFromUser(notClaimedUser);
+            await CheckAndQueueIfScoreSufficient(userUnclaimedDaily);
         }
     }
 
@@ -498,69 +528,86 @@ internal class Bot
                 break;
             }
 
-            await TryStealFromUser(user);
+            await CheckAndQueueIfScoreSufficient(user);
         }
     }
 
-    private async Task<List<RandomUser>> FindUsersNotClaimedDaily()
+    private async Task ScanLeaderboardUsersAndSave()
     {
-        List<Models.RandomUser> tempUsersNotClaimedDaily = new List<Models.RandomUser>();
-        int pageCounter = 1;
-        while (pageCounter <= 20)
+        while (GlobalQueue.LeaderBoardPages.TryDequeue(out int pageNumber))
         {
-            int retryCount = 0;
-            int maxRetryInARow = 20;
-            while (retryCount <= maxRetryInARow)
+            try
             {
-                try
+                var leaderboard = await _mfWrapper.GetLeaderboard(pageNumber);
+                Log($"Sayfa: {pageNumber} - Taranıyor...");
+                foreach (var user in leaderboard.Users)
                 {
-                    var leaderboard = await _mfWrapper.GetLeaderboard(pageCounter);
-                    foreach (var user in leaderboard.Users)
+                    var value = GlobalQueue.LeaderboardUsers.FirstOrDefault(x => x.UserId == user.Id);
+                    if (value is null)
                     {
-                        var userActivities = await _mfWrapper.GetActivity(user.TreeId);
-                        var usersActivity = userActivities.Activities.FirstOrDefault(x => x.Type.Contains("daily"));
-                        if (usersActivity is null || usersActivity.ClaimAt < DateTime.UtcNow.Date)
+                        GlobalQueue.LeaderboardUsers.Enqueue(new RandomUser()
                         {
-                            tempUsersNotClaimedDaily.Add(new Models.RandomUser()
-                            {
-                                TreeId = user.TreeId,
-                                UserId = user.Id
-                            });
-                        }
-                        await Task.Delay(100);
-
-                    }
-                    Log($"Leaderboard Sayfa {pageCounter} bitti.");
-                    pageCounter += 1;
-                    break;
-                }
-                catch (HttpRequestException exception)
-                {
-                    if (exception.StatusCode == HttpStatusCode.BadGateway)
-                    {
-                        await Log("FindUsersNotClaimedDaily() BadGateWay : " + exception.Message);
-                        await Task.Delay(1000);
-                        continue;
-                    }
-                    else
-                    {
-                        retryCount++;
-                        await Log("FindUsersNotClaimedDaily() İstek Hatası!? : " + exception.Message + $" - StatusCode: {exception.StatusCode}");
-                        await Task.Delay(1000);
-                        continue;
+                            TreeId = user.TreeId,
+                            UserId = user.Id,
+                        });
+                        Log($"Kullanıcı Eklendi - UserId: {user.Id} - TreeID: {user.TreeId}");
                     }
                 }
-                catch (Exception ex)
-                {
-                    retryCount++;
-                    ExceptionLogger.Log(ex);
-                    Log("[HATA] - Kaynak: FindUsersNotClaimedDaily() - Mesaj: " + ex.Message);
-                }
-
+            }
+            catch (Exception exception)
+            {
+                await Log($"Account:{_accountName} - ScanLeaderboardUsersAndSave() Ele alınmamış bir hata gerçekleşti! => " + exception.Message);
+                GlobalQueue.LeaderBoardPages.Enqueue(pageNumber);
+                await Task.Delay(TimeSpan.FromSeconds(15));
+                continue;
             }
         }
+        GlobalQueue.ScanCompletedBarrier.SignalAndWait();
+        Log($"Sıralama tablosunu tarama işlemi bitti.");
+    }
 
-        return tempUsersNotClaimedDaily;
+    private async Task FindUsersUnclaimedDaily()
+    {
+        while (GlobalQueue.LeaderboardUsers.TryDequeue(out RandomUser user))
+        {
+            try
+            {
+                var userActivities = await _mfWrapper.GetActivity(user.TreeId);
+                var usersActivity = userActivities.Activities.FirstOrDefault(x => x.Type.Contains("daily"));
+                if (usersActivity is null || usersActivity.ClaimAt < DateTime.UtcNow.Date)
+                {
+                    GlobalQueue.UsersUnclaimedDaily.Enqueue(new RandomUser()
+                    {
+                        TreeId = user.TreeId,
+                        UserId = user.UserId,
+                    });
+                }
+                await Log($"Günlüğünü toplamamış kullanıcı bulundu - UserID: {user.UserId}");
+            }
+            catch (HttpRequestException exception)
+            {
+                if (exception.StatusCode == HttpStatusCode.BadGateway)
+                {
+                    await Log("FindUsersUnclaimedDaily() BadGateWay : " + exception.Message);
+                    await Task.Delay(1000);
+                    GlobalQueue.LeaderboardUsers.Enqueue(user);
+                    continue;
+                }
+                else
+                {
+                    await Log("FindUsersUnclaimedDaily() İstek Hatası!? : " + exception.Message + $" - StatusCode: {exception.StatusCode}");
+                    await Task.Delay(1000);
+                    GlobalQueue.LeaderboardUsers.Enqueue(user);
+                    continue;
+                }
+            }
+            catch (Exception ex)
+            {
+                ExceptionLogger.Log(ex);
+                Log("[HATA] - Kaynak: FindUsersUnclaimedDaily() - Mesaj: " + ex.Message);
+                break;
+            }
+        }
     }
 
     private async Task Log(string msg) => await Console.Out.WriteLineAsync($"{DateTime.Now} - {_accountName}: {msg}");

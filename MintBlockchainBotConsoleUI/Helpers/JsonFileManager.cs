@@ -43,7 +43,6 @@ internal class JsonFileManager
 
     static JsonFileManager()
     {
-        RemoveOldCacheFiles();
     }
 
     private static void CreateCredentialsFile()
@@ -95,17 +94,14 @@ internal class JsonFileManager
         }
     }
 
+    private static string _leaderboardUsersFileName => "leaderboardusers.json";
+    private static string _usersUnclaimedDailyFileName => "usersUnclaimedDaily.json";
 
-
-    private static string _todaysLeaderboardListFileName => DateTime.Now.ToString("dd_MM_yyyy") + "_leaderboard";
-    private static string _todaysStealableListFileName => DateTime.Now.ToString("dd_MM_yyyy") + "_checkedlist";
-
-    public static List<RandomUser>? LoadNotClaimedLeaderboardUsersIfExists(string accountName)
+    public static List<RandomUser>? LoadLeaderBoardUsers()
     {
-        var name = _todaysLeaderboardListFileName + $"_{accountName}.json";
-        if (File.Exists(name))
+        if (File.Exists(_leaderboardUsersFileName))
         {
-            return JsonSerializer.Deserialize<List<RandomUser>>(File.ReadAllText(name));
+            return JsonSerializer.Deserialize<List<RandomUser>>(File.ReadAllText(_leaderboardUsersFileName));
         }
         else
         {
@@ -113,69 +109,29 @@ internal class JsonFileManager
         }
     }
 
-    public static List<StealableUser> LoadStealableUsersIfExists(string accountName)
+    public static void SaveLeaderboardUsers(List<RandomUser> users)
     {
-        var name = _todaysStealableListFileName + $"_{accountName}.json";
-        if (File.Exists(name))
-        {
-            return JsonSerializer.Deserialize<List<StealableUser>>(File.ReadAllText(name));
-        }
-        else
-        {
-            return null;
-        }
-    }
-
-    public static void SaveNotClaimedLeaderboardUsersToFile(List<RandomUser> leaderboardDailyList, string accountName)
-    {
-        var name = _todaysLeaderboardListFileName + $"_{accountName}.json";
         try
         {
-            File.WriteAllText(name, JsonSerializer.Serialize(leaderboardDailyList));
+            File.WriteAllText(_leaderboardUsersFileName, JsonSerializer.Serialize(users));
         }
-        catch(Exception ex)
+        catch (Exception ex)
         {
-            Console.WriteLine(DateTime.Now + " - SaveNotClaimedUsersToFile methodunda bir hata oluştu, hata loglandı.");
+            Console.WriteLine(DateTime.Now + " - SaveLeaderboardUsers methodunda bir hata oluştu, hata loglandı.");
             ExceptionLogger.Log(ex);
         }
     }
 
-    public static void SaveSteableUsersToFile(List<StealableUser> stealableUsers, string accountName)
+    public static void SaveUsersUnclaimedDaily(List<RandomUser> UsersUnclaimedDaily)
     {
-        var name = _todaysStealableListFileName + $"_{accountName}.json";
         try
         {
-            File.WriteAllText(name, JsonSerializer.Serialize(stealableUsers));
+            File.WriteAllText(_usersUnclaimedDailyFileName, JsonSerializer.Serialize(UsersUnclaimedDaily));
         }
         catch(Exception ex)
         {
-            Console.WriteLine(DateTime.Now + " - SaveSteableUsersToFile methodunda bir hata oluştu, hata loglandı.");
+            Console.WriteLine(DateTime.Now + " - SaveUsersUnclaimedDaily methodunda bir hata oluştu, hata loglandı.");
             ExceptionLogger.Log(ex);
-        }
-    }
-
-    /// <summary>
-    /// Bu günden daha eski tüm kayıtlı leaderboard ve checkedlist dosyalarını siler.
-    /// </summary>
-    public static void RemoveOldCacheFiles()
-    {
-        string todaysDate = DateTime.Now.ToString("dd_MM_yyyy");
-
-        var files = Directory.GetFiles(AppDomain.CurrentDomain.BaseDirectory);
-
-        foreach (var file in files)
-        {
-            var info = new FileInfo(file);
-            if (info.Name.Contains("_leaderboard"))
-            {
-                var namesDate = info.Name.Split("_lead").First();
-                if (namesDate != todaysDate) info.Delete();
-            }
-            else if (info.Name.Contains("_checkedlist"))
-            {
-                var namesDate = info.Name.Split("_check").First();
-                if (namesDate != todaysDate) info.Delete();
-            }
         }
     }
 }

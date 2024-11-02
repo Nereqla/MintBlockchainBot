@@ -274,7 +274,7 @@ public class MintForest
             var web3 = new Web3(account, rpcUrl);
             var contractAddress = "0x12906892AaA384ad59F2c431867af6632c68100a";
 
-            string transactionHash = await web3.TransactionManager.SendTransactionAsync(new Nethereum.RPC.Eth.DTOs.TransactionInput
+            string transactionHash = await web3.TransactionManager.SendTransactionAsync(new TransactionInput
             {
                 From = account.Address,
                 To = contractAddress,
@@ -314,7 +314,7 @@ public class MintForest
             var web3 = new Web3(account, rpcUrl);
             var contractAddress = "0x12906892AaA384ad59F2c431867af6632c68100a";
 
-            var transactionInput = new Nethereum.RPC.Eth.DTOs.TransactionInput
+            var transactionInput = new TransactionInput
             {
                 From = account.Address,
                 To = contractAddress,

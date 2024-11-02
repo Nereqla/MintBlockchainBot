@@ -24,7 +24,7 @@ internal class Program
                 {
                     Console.WriteLine($"{account.AccountName} isimli hesaba başarı ile girildi!");
                     _ = Task.Factory.StartNew(async() => {
-                        Bot bot = new Bot(wrapper,account.AccountName);
+                        Bot bot = new Bot(wrapper,account.AccountName, account.StealPointsOnThisAccount, account.CollectDailyOnChain);
                         await bot.Start();
                     });
                 }
@@ -44,6 +44,7 @@ internal class Program
         try
         {
             _appSettings = JsonFileManager.ReadCredentials();
+            GlobalQueue.SetBarrier(_appSettings.Credentials.Count);
             DiscordWebHookManager.DiscordInformWebHook = _appSettings.WebHookURL;
             DiscordWebHookManager.DiscordErrorWebHook = _appSettings.ErrorWebHookURL;
             DiscordWebHookManager.DiscordLogic();
