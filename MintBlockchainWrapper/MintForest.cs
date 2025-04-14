@@ -11,7 +11,7 @@ public class MintForest
 {
     private HttpHelper _httpHelper;
     private Authorization _authorization;
-    private string _bearerToken = String.Empty;
+        private string _bearerToken = String.Empty;
     private string _publicKey = String.Empty;
     private bool _isAuthenticated = false;
     public MintForest(string privateKey, Proxy proxy = null)

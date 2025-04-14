@@ -13,7 +13,7 @@ internal class Bot
     private List<StealableUser> _steableUsers;
     private bool _collectDailyOnChain = true;
     private bool _tryBruteForceForSteal = false;
-    private int _minEnergyAmountToCollect = 25000;
+    private int _minEnergyAmountToCollect = 15000;
     private int _maxDailyStealLimit = 8;
     private int _currentStealCount = 0;
     private Random _rnd = new Random();
@@ -252,13 +252,13 @@ internal class Bot
             return;
         }
 
-        DateTime leaderBoardCheckTime = DateTime.UtcNow.Date.AddHours(11).AddMinutes(53).AddSeconds(1); // 14:53
+        DateTime leaderBoardCheckTime = DateTime.UtcNow.Date.AddHours(11).AddMinutes(30).AddSeconds(1); // 14:35
         DateTime stealTime = DateTime.UtcNow.Date.AddHours(12).AddSeconds(1); // 15:00
 
         if (DateTime.UtcNow < leaderBoardCheckTime)
         {
             TimeSpan delay = leaderBoardCheckTime - DateTime.UtcNow;
-            Log($"Saat 14:45'e kadar bekleniyor: {delay}");
+            Log($"Saat 14:35'e kadar bekleniyor: {delay}");
             await Task.Delay(delay);
             Log("Vakit geldi! Hadi henüz günlüklerini toplamamış oyuncuları bulalım.");
         }
@@ -286,6 +286,7 @@ internal class Bot
 
         await ScanUsersAmount();
 
+        
         if (!_runStealLogicOnThisAccount)
         {
             await Log("Bu hesapta çalma işlemleri kapalı, sadece tarama yapıldı.");
@@ -310,10 +311,10 @@ internal class Bot
                 if (_currentStealCount < _maxDailyStealLimit)
                 {
                     InformDiscord(new List<string>()
-                {
-                    $"Brute Force Bitti. Günlük çalma miktarını yine tamamlayamadık! HOW THE FUCK?",
-                    $"StealCount: {_currentStealCount}/{_maxDailyStealLimit}"
-                }, true);
+                    {
+                        $"Brute Force Bitti. Günlük çalma miktarını yine tamamlayamadık! HOW THE FUCK?",
+                        $"StealCount: {_currentStealCount}/{_maxDailyStealLimit}"
+                    }, true);
                 }
                 else InformDiscord(new List<string>()
                 {
@@ -488,7 +489,6 @@ internal class Bot
                 ExceptionLogger.Log(ex);
                 if (retry <= maxRetryInARow)
                 {
-                    var dflkgjdfg = ex;
                     tryAgain = true;
                     retry++;
                     Log($"!deneme sayısı: {retry} ");
@@ -511,7 +511,7 @@ internal class Bot
         {
             if (_currentStealCount >= _maxDailyStealLimit)
             {
-                await Log("Toplama hakkı bittiğinden tarama sonlandırılıyor... ScanUsersAmount()");
+                Log("Toplama hakkı bittiğinden tarama sonlandırılıyor... ScanUsersAmount()");
                 break;
             }
             await CheckAndQueueIfScoreSufficient(userUnclaimedDaily);

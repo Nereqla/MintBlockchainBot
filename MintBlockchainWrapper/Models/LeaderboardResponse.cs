@@ -16,7 +16,7 @@ public class UserTree
     public string Ens { get; set; }
 
     [JsonPropertyName("amount")]
-    public int Amount { get; set; }
+    public ulong Amount { get; set; }
 
     [JsonPropertyName("role")]
     public string Role { get; set; }
